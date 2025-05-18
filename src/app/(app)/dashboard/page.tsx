@@ -1,3 +1,4 @@
+
 "use client";
 
 import { PageHeader } from '@/components/shared/page-header';
@@ -27,22 +28,19 @@ const mockAppointmentsData = [
   { id: '2', petName: 'Lucy', vetName: 'Dr. Pawson', date: '2024-08-20', time: '02:30 PM', type: 'Vaccination' },
 ];
 
-const activityData = [
-  { month: "January", activity: 186 },
-  { month: "February", activity: 305 },
-  { month: "March", activity: 237 },
-  { month: "April", activity: 273 },
-  { month: "May", activity: 209 },
-  { month: "June", activity: 214 },
-];
-const chartConfig = {
-  activity: { label: "Activity Level", color: "hsl(var(--primary))" },
-}
+const healthChartConfig = {
+  healthScore: { label: "Health Score", color: "hsl(var(--primary))" },
+};
 
 const speciesData = [
   { name: 'Dogs', value: 2, fill: 'hsl(var(--chart-1))' },
   { name: 'Cats', value: 1, fill: 'hsl(var(--chart-2))' },
 ];
+
+const speciesChartConfig = {
+  Dogs: { label: 'Dogs', color: 'hsl(var(--chart-1))' },
+  Cats: { label: 'Cats', color: 'hsl(var(--chart-2))' },
+};
 
 
 export default function DashboardPage() {
@@ -107,18 +105,19 @@ export default function DashboardPage() {
             <CardDescription>Average health scores of your pets.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={mockPetHealthData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--foreground))" />
-                <YAxis stroke="hsl(var(--foreground))" domain={[0, 100]} />
-                <ChartTooltip
-                  content={<ChartTooltipContent labelKey="healthScore" nameKey="name" cursor={false} />}
-                  
-                />
-                <Bar dataKey="healthScore" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <ChartContainer config={healthChartConfig}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={mockPetHealthData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" stroke="hsl(var(--foreground))" tickLine={false} axisLine={false} />
+                  <YAxis stroke="hsl(var(--foreground))" domain={[0, 100]} tickLine={false} axisLine={false} />
+                  <ChartTooltip
+                    content={<ChartTooltipContent nameKey="healthScore" cursor={false} />}
+                  />
+                  <Bar dataKey="healthScore" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
 
@@ -128,7 +127,7 @@ export default function DashboardPage() {
             <CardDescription>Breakdown of your pets by species.</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] flex items-center justify-center">
-             <ChartContainer config={chartConfig} className="mx-auto aspect-square max-h-[250px]">
+             <ChartContainer config={speciesChartConfig} className="mx-auto aspect-square max-h-[250px]">
               <PieChart>
                 <ChartTooltip content={<ChartTooltipContent hideLabel />} />
                 <Pie data={speciesData} dataKey="value" nameKey="name" labelLine={false} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
@@ -168,3 +167,4 @@ export default function DashboardPage() {
     </>
   );
 }
+
