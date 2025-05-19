@@ -77,9 +77,9 @@ export default function PetsPage() {
       });
       setPets(petsData);
       setIsLoading(false);
-      console.log("Pets loaded successfully:", petsData);
-    }, (err) => {
-      console.error("Firestore error in onSnapshot (PetsPage):", err); // Detailed error log
+      console.log(`Pets loaded successfully for user: ${user.uid} (Count: ${petsData.length})`, petsData);
+    }, (err: any) => { // Explicitly type err as any for broader error object access
+      console.error("Firestore error in onSnapshot (PetsPage):", err); 
       setError(`Error loading pets. Firestore error: ${err.name} - ${err.message}. Check browser console for full details (may include index creation link or permission issues).`);
       setIsLoading(false);
     });
@@ -148,7 +148,7 @@ export default function PetsPage() {
           <CardHeader>
             <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
             <CardTitle className="text-destructive">Error Loading Pets</CardTitle>
-            <CardDescription>{error}</CardDescription> {/* This will now display the more detailed Firestore error name/message */}
+            <CardDescription>{error}</CardDescription> 
           </CardHeader>
            <CardContent>
             <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
@@ -179,7 +179,7 @@ export default function PetsPage() {
           <CardHeader>
             <PawPrint className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
             <CardTitle>No Pets Yet!</CardTitle>
-            <CardDescription>Start by adding your first furry friend.</CardDescription>
+            <CardDescription>Start by adding your first furry friend. If you've added pets before, ensure they are correctly associated with your user account.</CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/pets/new">
