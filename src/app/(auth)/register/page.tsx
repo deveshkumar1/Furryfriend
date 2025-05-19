@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -16,6 +17,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
+import { auth, db } from '@/lib/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
 
 const registerSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -31,6 +37,9 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -41,12 +50,39 @@ export default function RegisterPage() {
     },
   });
 
-  // Mock registration function
-  function onSubmit(values: RegisterFormValues) {
-    console.log('Registration attempt:', values);
-    // In a real app, you would register the user here
-    // For now, redirect to dashboard on any submission
-    router.push('/dashboard');
+  async function onSubmit(values: RegisterFormValues) {
+    setIsSubmitting(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+
+      // Store additional user info in Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        name: values.name,
+        email: values.email,
+        createdAt: serverTimestamp(),
+      });
+
+      toast({
+        title: "Account Created!",
+        description: "You have been successfully registered.",
+      });
+      router.push('/dashboard');
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      let errorMessage = "Failed to create account. Please try again.";
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "This email address is already in use.";
+      }
+      toast({
+        title: "Registration Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -65,7 +101,7 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>Full Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="John Doe" {...field} />
+                    <Input placeholder="John Doe" {...field} disabled={isSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -78,7 +114,7 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="you@example.com" {...field} />
+                    <Input type="email" placeholder="you@example.com" {...field} disabled={isSubmitting}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -91,7 +127,7 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -104,14 +140,14 @@ export default function RegisterPage() {
                 <FormItem>
                   <FormLabel>Confirm Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full text-lg py-6">
-              Sign Up
+            <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting}>
+              {isSubmitting ? 'Signing Up...' : 'Sign Up'}
             </Button>
           </form>
         </Form>

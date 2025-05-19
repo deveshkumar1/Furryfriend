@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -16,7 +17,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Logo } from '@/components/shared/logo';
-import { useRouter } from 'next/navigation'; // Use next/navigation for App Router
+import { useRouter } from 'next/navigation';
+import { auth } from '@/lib/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
 
 const loginSchema = z.object({
   email: z.string().email({ message: 'Invalid email address.' }),
@@ -27,6 +32,9 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -35,12 +43,29 @@ export default function LoginPage() {
     },
   });
 
-  // Mock login function
-  function onSubmit(values: LoginFormValues) {
-    console.log('Login attempt:', values);
-    // In a real app, you would authenticate the user here
-    // For now, redirect to dashboard on any submission
-    router.push('/dashboard');
+  async function onSubmit(values: LoginFormValues) {
+    setIsSubmitting(true);
+    try {
+      await signInWithEmailAndPassword(auth, values.email, values.password);
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!",
+      });
+      router.push('/dashboard');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      let errorMessage = "Invalid email or password. Please try again.";
+       if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errorMessage = "Invalid email or password.";
+      }
+      toast({
+        title: "Login Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -61,7 +86,7 @@ export default function LoginPage() {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="you@example.com" {...field} />
+                      <Input type="email" placeholder="you@example.com" {...field} disabled={isSubmitting} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -74,14 +99,14 @@ export default function LoginPage() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} />
+                      <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting}/>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full text-lg py-6">
-                Sign In
+              <Button type="submit" className="w-full text-lg py-6" disabled={isSubmitting}>
+                {isSubmitting ? 'Signing In...' : 'Sign In'}
               </Button>
             </form>
           </Form>

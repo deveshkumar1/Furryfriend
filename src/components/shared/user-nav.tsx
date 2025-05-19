@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -14,33 +15,76 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useRouter } from 'next/navigation';
-import { CreditCard, LogOut, PawPrint, Settings, User } from 'lucide-react';
+import { CreditCard, LogOut, PawPrint, Settings, User, Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
+import { useToast } from '@/hooks/use-toast';
 
 export function UserNav() {
   const router = useRouter();
+  const { user, userProfile, loading } = useAuth();
+  const { toast } = useToast();
 
-  const handleLogout = () => {
-    // Perform logout logic here
-    console.log("User logged out");
-    router.push('/'); // Redirect to login page
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.push('/'); 
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({
+        title: "Logout Failed",
+        description: "Could not log out. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
+
+  if (loading) {
+    return (
+      <Button variant="ghost" className="relative h-10 w-10 rounded-full" disabled>
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </Button>
+    );
+  }
+
+  if (!user) {
+    return (
+      <Button onClick={() => router.push('/')}>
+        Sign In
+      </Button>
+    );
+  }
+  
+  const getInitials = (name?: string) => {
+    if (!name) return user?.email?.[0]?.toUpperCase() || 'U';
+    const names = name.split(' ');
+    if (names.length === 1) return names[0][0]?.toUpperCase();
+    return (names[0][0] + (names[names.length - 1][0] || '')).toUpperCase();
+  };
+
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
           <Avatar className="h-10 w-10 border-2 border-primary/50">
-            <AvatarImage src="https://placehold.co/100x100.png" alt="User Avatar" data-ai-hint="user avatar" />
-            <AvatarFallback>JD</AvatarFallback>
+            {/* Assuming userProfile might have an avatarUrl, otherwise fallback */}
+            <AvatarImage src={userProfile?.avatarUrl || 'https://placehold.co/100x100.png'} alt={userProfile?.name || user.email || "User"} data-ai-hint="user avatar" />
+            <AvatarFallback>{getInitials(userProfile?.name)}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">John Doe</p>
+            <p className="text-sm font-medium leading-none">{userProfile?.name || "User"}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              john.doe@example.com
+              {user.email}
             </p>
           </div>
         </DropdownMenuLabel>

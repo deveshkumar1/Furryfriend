@@ -10,13 +10,13 @@ import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, Cale
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-// import { Checkbox } from '@/components/ui/checkbox'; // Not used
-// import { Label } from '@/components/ui/label'; // Not used
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, LineChart as RechartsLineChart, Line } from 'recharts';
 import { ChartTooltipContent } from '@/components/ui/chart';
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, onSnapshot, DocumentData } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthContext'; // Import useAuth
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 interface PetData extends DocumentData {
   id: string;
@@ -31,6 +31,7 @@ interface PetData extends DocumentData {
   notes?: string;
   imageUrl?: string;
   dataAiHint?: string;
+  userId?: string; // Added userId
 }
 
 // Mock data for sub-tabs, replace with Firestore fetching later
@@ -56,11 +57,25 @@ const healthDataActivity = [
 
 
 export default function PetProfilePage({ params }: { params: { petId: string } }) {
+  const { user, loading: authLoading } = useAuth(); // Get user and auth loading state
+  const router = useRouter(); // Initialize useRouter
   const [pet, setPet] = useState<PetData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // For Firestore data loading
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authLoading) {
+      setIsLoading(true);
+      return;
+    }
+
+    if (!user) {
+      // This should ideally be caught by AppLayout redirect
+      setIsLoading(false);
+      setError("You must be logged in to view this page.");
+      return;
+    }
+    
     if (!params.petId) {
       setError("Pet ID is missing.");
       setIsLoading(false);
@@ -73,7 +88,13 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
 
     const unsubscribe = onSnapshot(petDocRef, (docSnap) => {
       if (docSnap.exists()) {
-        setPet({ id: docSnap.id, ...docSnap.data() } as PetData);
+        const petData = { id: docSnap.id, ...docSnap.data() } as PetData;
+        if (petData.userId !== user.uid) { // Check if pet belongs to the current user
+          setError("Access denied. This pet does not belong to you.");
+          setPet(null);
+        } else {
+          setPet(petData);
+        }
       } else {
         setError("Pet not found.");
         setPet(null);
@@ -86,9 +107,9 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     });
 
     return () => unsubscribe();
-  }, [params.petId]);
+  }, [params.petId, user, authLoading, router]);
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -111,11 +132,11 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
   }
   
   if (!pet) {
-     return ( // Should be caught by error state, but as a fallback
+     return ( 
       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
         <PawPrint className="w-16 h-16 text-muted-foreground mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Pet Not Found</h2>
-        <p className="text-muted-foreground mb-4">The pet profile could not be loaded.</p>
+        <p className="text-muted-foreground mb-4">The pet profile could not be loaded or you don't have access.</p>
         <Link href="/pets">
           <Button variant="outline">Back to My Pets</Button>
         </Link>
@@ -131,8 +152,8 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
         description={`${pet.species} ${pet.breed ? `- ${pet.breed}` : ''}`}
         icon={PawPrint}
         action={
-          <Link href={`/pets/${pet.id}/edit`}> {/* Placeholder for edit page */}
-            <Button variant="outline" disabled> {/* TODO: Enable edit functionality */}
+          <Link href={`/pets/${pet.id}/edit`}> 
+            <Button variant="outline" disabled> 
               <Edit3 className="mr-2 h-4 w-4" /> Edit Profile
             </Button>
           </Link>
@@ -333,9 +354,9 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
               <div className="p-4 border rounded-lg bg-secondary/30">
                 <h3 className="font-semibold text-lg mb-2 flex items-center"><Share2 className="mr-2 h-5 w-5 text-accent" /> Share with Veterinarian</h3>
                 <p className="text-sm text-muted-foreground mb-3">Grant temporary access to {pet.name}&apos;s records to a veterinarian. Requires Pro plan.</p>
-                {true ? ( // Replace with actual subscription check
+                {true ? ( 
                   <div className="space-y-3">
-                    {/* <Label htmlFor="vetEmail">Veterinarian&apos;s Email</Label> */} {/* Label not used with current setup */}
+                    
                     <div className="flex gap-2">
                        <Input id="vetEmail" type="email" placeholder="vet@example.com" className="w-full p-2 border rounded-md" disabled />
                        <Button variant="outline" disabled>Send Invite</Button>

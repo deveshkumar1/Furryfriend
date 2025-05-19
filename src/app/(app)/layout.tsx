@@ -1,14 +1,45 @@
+
+"use client"; // Required because UserNav and MainNav will use useAuth hook
+
 import { MainNav } from '@/components/shared/main-nav';
 import { UserNav } from '@/components/shared/user-nav';
 import { Logo } from '@/components/shared/logo';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+
 
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/'); // Redirect to login if not authenticated
+    }
+  }, [user, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    // This state should ideally be handled by the redirect,
+    // but as a fallback, or if redirect is too slow.
+    return null; 
+  }
+
   return (
     <SidebarProvider defaultOpen>
       <Sidebar collapsible="icon" className="border-r border-sidebar-border">

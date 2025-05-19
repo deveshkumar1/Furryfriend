@@ -6,18 +6,16 @@ import Image from 'next/image';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { PawPrint, PlusCircle, Edit3, Loader2 } from 'lucide-react';
+import { PawPrint, PlusCircle, Edit3, Loader2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase'; // Import Firestore instance
-import { collection, query, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
-// TODO: Once auth is implemented, add 'where' to filter by userId:
-// import { collection, query, where, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
-// import { auth } from '@/lib/firebase'; // Assuming auth is exported from firebase.ts
-// import { useAuthState } from 'react-firebase-hooks/auth'; // Optional: for easier auth state management
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthContext'; // Import useAuth
+import { useRouter } from 'next/navigation';
 
 interface Pet extends DocumentData {
-  id: string; // Firestore document ID
+  id: string; 
   name: string;
   species: string;
   breed?: string;
@@ -29,36 +27,38 @@ interface Pet extends DocumentData {
   color?: string;
   weight?: string;
   notes?: string;
-  // userId?: string; // To associate pet with a user
+  userId?: string; 
 }
 
 export default function PetsPage() {
+  const { user, loading: authLoading } = useAuth(); // Get user and auth loading state
+  const router = useRouter();
   const [pets, setPets] = useState<Pet[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // For Firestore data loading
   const [error, setError] = useState<string | null>(null);
 
-  // const [user, loadingAuth, errorAuth] = useAuthState(auth); // Optional: for auth state
-
   useEffect(() => {
+    if (authLoading) {
+      setIsLoading(true); // Keep loading if auth state is still resolving
+      return;
+    }
+
+    if (!user) {
+      // This should ideally be caught by AppLayout redirect, but as a safeguard
+      // router.push('/'); // Or display a message
+      setIsLoading(false);
+      setPets([]); // Clear pets if no user
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-
-    // TODO: Replace with user-specific query once authentication is implemented
-    // if (!user && !loadingAuth) {
-    //   setIsLoading(false);
-    //   // Redirect to login or show message if user is not authenticated
-    //   // For now, we'll just not fetch data if no user (or load all for demo)
-    //   // To fetch all for demo purposes without auth:
-    //   // const q = query(collection(db, "pets"), orderBy("createdAt", "desc"));
-    //   setPets([]); // Clear pets if no user
-    //   return;
-    // }
-    // if (loadingAuth) return; // Wait for auth state to load
-
-    // Example: Fetch all pets for now. Replace with user-specific query later.
-    const q = query(collection(db, "pets"), orderBy("createdAt", "desc"));
-    // const q = query(collection(db, "pets"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
-
+    
+    const q = query(
+      collection(db, "pets"), 
+      where("userId", "==", user.uid), // Filter by logged-in user's ID
+      orderBy("createdAt", "desc")
+    );
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const petsData: Pet[] = [];
@@ -73,11 +73,10 @@ export default function PetsPage() {
       setIsLoading(false);
     });
 
-    // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, []); // Add 'user', 'loadingAuth' to dependency array if using useAuthState
+  }, [user, authLoading, router]);
 
-  if (isLoading) {
+  if (authLoading || isLoading) { // Check both auth and data loading
     return (
       <>
         <PageHeader
@@ -102,6 +101,29 @@ export default function PetsPage() {
       </>
     );
   }
+  
+  if (!user && !authLoading) { // If auth is done loading and still no user
+     return (
+      <>
+      <PageHeader
+        title="My Pets"
+        description="Manage profiles for all your beloved pets."
+        icon={PawPrint}
+      />
+      <Card className="text-center py-12 shadow-lg">
+        <CardHeader>
+          <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
+          <CardTitle>Access Denied</CardTitle>
+          <CardDescription>Please log in to view your pets.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Button onClick={() => router.push('/')}>Go to Login</Button>
+        </CardContent>
+      </Card>
+      </>
+    );
+  }
+
 
   if (error) {
      return (
@@ -168,9 +190,9 @@ export default function PetsPage() {
                 <Image 
                   src={pet.imageUrl || 'https://placehold.co/300x200.png'} 
                   alt={pet.name} 
-                  fill // Use fill instead of layout
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" // Add sizes prop
-                  style={{ objectFit: 'cover' }} // Use style for objectFit
+                  fill 
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" 
+                  style={{ objectFit: 'cover' }} 
                   data-ai-hint={pet.dataAiHint || pet.species?.toLowerCase() || 'animal'}
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = 'https://placehold.co/300x200.png';
@@ -198,12 +220,6 @@ export default function PetsPage() {
                     View Profile
                   </Button>
                 </Link>
-                {/* <Link href={`/pets/${pet.id}/edit`} className="w-full"> 
-                   <Button className="w-full">
-                    <Edit3 className="mr-2 h-4 w-4" /> Edit
-                  </Button>
-                </Link> */}
-                {/* Edit button functionality would require a separate edit page or modal and Firestore update logic */}
                  <Button className="w-full" disabled> {/* Placeholder */}
                     <Edit3 className="mr-2 h-4 w-4" /> Edit
                   </Button>

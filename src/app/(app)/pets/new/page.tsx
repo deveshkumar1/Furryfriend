@@ -18,13 +18,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/shared/page-header';
-import { PawPrint, UploadCloud } from 'lucide-react';
+import { PawPrint, UploadCloud, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { useState } from 'react';
-import { db } from '@/lib/firebase'; // Import Firestore instance
+import { db } from '@/lib/firebase'; 
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthContext'; // Import useAuth
 
 const petFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
@@ -36,7 +37,7 @@ const petFormSchema = z.object({
   color: z.string().optional(),
   weight: z.string().optional(),
   notes: z.string().optional(),
-  profilePicture: z.any().optional(), // For file upload, will store URL if implemented
+  profilePicture: z.any().optional(),
 });
 
 type PetFormValues = z.infer<typeof petFormSchema>;
@@ -44,6 +45,7 @@ type PetFormValues = z.infer<typeof petFormSchema>;
 export default function NewPetPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth(); // Get user from AuthContext
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,8 +65,19 @@ export default function NewPetPage() {
   });
 
   async function onSubmit(values: PetFormValues) {
+    if (!user) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to add a pet.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
     setIsSubmitting(true);
     const newPetData = {
+      userId: user.uid, // Associate pet with the logged-in user
       name: values.name,
       species: values.species,
       breed: values.breed || '',
@@ -76,9 +89,7 @@ export default function NewPetPage() {
       color: values.color || '',
       weight: values.weight || '',
       notes: values.notes || '',
-      createdAt: serverTimestamp(), // Firestore timestamp
-      // TODO: Add userId once authentication is implemented
-      // userId: currentUser.uid, 
+      createdAt: serverTimestamp(),
     };
 
     try {
@@ -105,19 +116,35 @@ export default function NewPetPage() {
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      // For now, we're just setting a preview.
-      // Actual image upload to Firebase Storage would be a separate step.
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewImage(reader.result as string);
       };
       reader.readAsDataURL(file);
-      form.setValue('profilePicture', file); // Storing file for potential upload
+      form.setValue('profilePicture', file);
     } else {
       setPreviewImage(null);
       form.setValue('profilePicture', null);
     }
   };
+  
+  if (authLoading) { // Check authLoading from useAuth
+    return <PageHeader title="Loading..." icon={PawPrint} />; // Or a proper loading spinner
+  }
+
+  if (!user) {
+    // This page should ideally be protected by the AppLayout's redirect.
+    // But as a fallback:
+    return (
+       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
+        <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
+        <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
+        <p className="text-muted-foreground mb-4">Please log in to add a new pet.</p>
+        <Button onClick={() => router.push('/')}>Go to Login</Button>
+      </div>
+    );
+  }
+
 
   return (
     <>
@@ -313,7 +340,7 @@ export default function NewPetPage() {
                 <Button type="button" variant="outline" onClick={() => router.back()} disabled={isSubmitting}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting || authLoading}>
                   {isSubmitting ? "Saving..." : "Save Pet Profile"}
                 </Button>
               </div>
