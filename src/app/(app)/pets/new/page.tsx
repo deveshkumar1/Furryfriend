@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,12 +28,13 @@ const petFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
   species: z.string().min(1, { message: "Species is required." }),
   breed: z.string().optional(),
-  dateOfBirth: z.string().optional(), // Could use a date picker
+  age: z.string().optional(), // Added age field
+  dateOfBirth: z.string().optional(), 
   gender: z.enum(["male", "female", "unknown"]).optional(),
   color: z.string().optional(),
-  weight: z.string().optional(), // Could be number, handle units
+  weight: z.string().optional(),
   notes: z.string().optional(),
-  profilePicture: z.any().optional(), // For file upload
+  profilePicture: z.any().optional(),
 });
 
 type PetFormValues = z.infer<typeof petFormSchema>;
@@ -48,6 +50,7 @@ export default function NewPetPage() {
       name: '',
       species: '',
       breed: '',
+      age: '',
       dateOfBirth: '',
       gender: 'unknown',
       color: '',
@@ -57,20 +60,58 @@ export default function NewPetPage() {
   });
 
   function onSubmit(values: PetFormValues) {
-    console.log('New pet data:', values);
-    // In a real app, save the pet data
-    toast({
-      title: "Pet Profile Created!",
-      description: `${values.name} has been added to your pets.`,
-    });
-    router.push('/pets');
+    const newPet = {
+      id: Date.now().toString(),
+      name: values.name,
+      species: values.species,
+      breed: values.breed || '',
+      age: values.age || '',
+      imageUrl: previewImage || 'https://placehold.co/300x200.png', // Use preview or default
+      dataAiHint: values.species?.toLowerCase() || 'animal',
+      // Store other details from the form as well
+      dateOfBirth: values.dateOfBirth,
+      gender: values.gender,
+      color: values.color,
+      weight: values.weight,
+      notes: values.notes,
+    };
+
+    try {
+      const existingPetsString = localStorage.getItem('pets');
+      const existingPets = existingPetsString ? JSON.parse(existingPetsString) : [];
+      existingPets.push(newPet);
+      localStorage.setItem('pets', JSON.stringify(existingPets));
+
+      toast({
+        title: "Pet Profile Created!",
+        description: `${values.name} has been added to your pets.`,
+      });
+      router.push('/pets');
+    } catch (error) {
+      console.error("Failed to save pet to localStorage", error);
+      toast({
+        title: "Error",
+        description: "Could not save pet profile. Please try again.",
+        variant: "destructive",
+      });
+    }
   }
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       form.setValue('profilePicture', file);
-      setPreviewImage(URL.createObjectURL(file));
+      // For localStorage, we can't store the file object directly.
+      // We can store the Data URL if we want the image to persist in localStorage (can be large).
+      // For simplicity, we'll use the preview for display and newPet.imageUrl will handle it.
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setPreviewImage(null);
+      form.setValue('profilePicture', null);
     }
   };
 
@@ -115,12 +156,12 @@ export default function NewPetPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="dog">Dog</SelectItem>
-                          <SelectItem value="cat">Cat</SelectItem>
-                          <SelectItem value="bird">Bird</SelectItem>
-                          <SelectItem value="reptile">Reptile</SelectItem>
-                          <SelectItem value="small_mammal">Small Mammal</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
+                          <SelectItem value="Dog">Dog</SelectItem>
+                          <SelectItem value="Cat">Cat</SelectItem>
+                          <SelectItem value="Bird">Bird</SelectItem>
+                          <SelectItem value="Reptile">Reptile</SelectItem>
+                          <SelectItem value="Small Mammal">Small Mammal</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -132,7 +173,7 @@ export default function NewPetPage() {
               <FormField
                 control={form.control}
                 name="profilePicture"
-                render={({ field }) => (
+                render={() => ( // field is not directly used for input type=file with custom handler
                   <FormItem>
                     <FormLabel>Profile Picture</FormLabel>
                     <FormControl>
@@ -157,7 +198,6 @@ export default function NewPetPage() {
                 )}
               />
 
-
               <div className="grid md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
@@ -174,6 +214,22 @@ export default function NewPetPage() {
                 />
                 <FormField
                   control={form.control}
+                  name="age"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Age (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., 3 years, 6 months" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <div className="grid md:grid-cols-3 gap-6">
+                 <FormField
+                  control={form.control}
                   name="dateOfBirth"
                   render={({ field }) => (
                     <FormItem>
@@ -185,9 +241,6 @@ export default function NewPetPage() {
                     </FormItem>
                   )}
                 />
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-6">
                 <FormField
                   control={form.control}
                   name="gender"
@@ -223,20 +276,21 @@ export default function NewPetPage() {
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="weight"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Weight (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., 15 lbs or 7 kg" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
+
+              <FormField
+                control={form.control}
+                name="weight"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Weight (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 15 lbs or 7 kg" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <FormField
                 control={form.control}
@@ -269,3 +323,5 @@ export default function NewPetPage() {
     </>
   );
 }
+
+    
