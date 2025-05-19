@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, CalendarIcon, FileText, Download, Users, Loader2, AlertTriangle } from 'lucide-react';
+import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, CalendarIcon as CalendarIconLucide, FileText, Download, Users, Loader2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,9 +14,19 @@ import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as 
 import { ChartTooltipContent } from '@/components/ui/chart';
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, onSnapshot, DocumentData } from 'firebase/firestore';
-import { useAuth } from '@/context/AuthContext'; // Import useAuth
-import { useRouter } from 'next/navigation'; // Import useRouter
+import { doc, onSnapshot, DocumentData, collection, addDoc, serverTimestamp, query, where, orderBy } from 'firebase/firestore';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { format } from 'date-fns';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useToast } from '@/hooks/use-toast';
 
 interface PetData extends DocumentData {
   id: string;
@@ -31,15 +41,27 @@ interface PetData extends DocumentData {
   notes?: string;
   imageUrl?: string;
   dataAiHint?: string;
-  userId?: string; // Added userId
+  userId?: string;
 }
 
-// Mock data for sub-tabs, replace with Firestore fetching later
-const vaccinations = [
-  { id: 'v1', name: 'Rabies', date: '2023-06-15', nextDueDate: '2024-06-15', veterinarian: 'Dr. Smith' },
-  { id: 'v2', name: 'Distemper', date: '2023-06-15', nextDueDate: '2024-06-15', veterinarian: 'Dr. Smith' },
-];
+interface VaccinationRecord extends DocumentData {
+  id: string;
+  vaccineName: string;
+  dateAdministered: string; // Stored as ISO string or Firestore Timestamp string
+  nextDueDate?: string;    // Stored as ISO string or Firestore Timestamp string
+  veterinarian: string;
+}
 
+const vaccinationFormSchema = z.object({
+  vaccineName: z.string().min(1, "Vaccine name is required"),
+  dateAdministered: z.date({ required_error: "Date administered is required" }),
+  nextDueDate: z.date().optional(),
+  veterinarian: z.string().min(1, "Veterinarian name is required"),
+});
+
+type VaccinationFormValues = z.infer<typeof vaccinationFormSchema>;
+
+// Mock data for sub-tabs, replace with Firestore fetching later
 const medications = [
   { id: 'm1', name: 'Heartworm Prevention', dosage: '1 tablet monthly', startDate: '2023-01-01', endDate: 'Ongoing', veterinarian: 'Dr. Smith', notes: 'Given with food.'},
   { id: 'm2', name: 'Flea & Tick', dosage: '1 topical monthly', startDate: '2023-01-01', endDate: 'Ongoing', veterinarian: 'Dr. Smith' },
@@ -57,39 +79,46 @@ const healthDataActivity = [
 
 
 export default function PetProfilePage({ params }: { params: { petId: string } }) {
-  const { user, loading: authLoading } = useAuth(); // Get user and auth loading state
-  const router = useRouter(); // Initialize useRouter
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
   const [pet, setPet] = useState<PetData | null>(null);
-  const [isLoading, setIsLoading] = useState(true); // For Firestore data loading
+  const [petVaccinations, setPetVaccinations] = useState<VaccinationRecord[]>([]);
+  const [isLoadingPet, setIsLoadingPet] = useState(true);
+  const [isLoadingVaccinations, setIsLoadingVaccinations] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isVaccinationDialogOpen, setIsVaccinationDialogOpen] = useState(false);
+
+  const vaccinationForm = useForm<VaccinationFormValues>({
+    resolver: zodResolver(vaccinationFormSchema),
+  });
 
   useEffect(() => {
     if (authLoading) {
-      setIsLoading(true);
+      setIsLoadingPet(true);
       return;
     }
 
     if (!user) {
-      // This should ideally be caught by AppLayout redirect
-      setIsLoading(false);
+      setIsLoadingPet(false);
       setError("You must be logged in to view this page.");
       return;
     }
     
     if (!params.petId) {
       setError("Pet ID is missing.");
-      setIsLoading(false);
+      setIsLoadingPet(false);
       return;
     }
 
-    setIsLoading(true);
+    setIsLoadingPet(true);
     setError(null);
     const petDocRef = doc(db, "pets", params.petId);
 
-    const unsubscribe = onSnapshot(petDocRef, (docSnap) => {
+    const unsubscribePet = onSnapshot(petDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const petData = { id: docSnap.id, ...docSnap.data() } as PetData;
-        if (petData.userId !== user.uid) { // Check if pet belongs to the current user
+        if (petData.userId !== user.uid) {
           setError("Access denied. This pet does not belong to you.");
           setPet(null);
         } else {
@@ -99,17 +128,74 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
         setError("Pet not found.");
         setPet(null);
       }
-      setIsLoading(false);
+      setIsLoadingPet(false);
     }, (err) => {
       console.error("Error fetching pet profile: ", err);
       setError("Failed to load pet profile.");
-      setIsLoading(false);
+      setIsLoadingPet(false);
     });
 
-    return () => unsubscribe();
+    return () => unsubscribePet();
   }, [params.petId, user, authLoading, router]);
 
-  if (authLoading || isLoading) {
+  useEffect(() => {
+    if (!user || !params.petId) {
+      setPetVaccinations([]);
+      setIsLoadingVaccinations(false);
+      return;
+    }
+    setIsLoadingVaccinations(true);
+    const q = query(
+      collection(db, "vaccinations"),
+      where("userId", "==", user.uid),
+      where("petId", "==", params.petId),
+      orderBy("dateAdministered", "desc")
+    );
+
+    const unsubscribeVaccinations = onSnapshot(q, (querySnapshot) => {
+      const recordsData: VaccinationRecord[] = [];
+      querySnapshot.forEach((doc) => {
+        recordsData.push({ id: doc.id, ...doc.data() } as VaccinationRecord);
+      });
+      setPetVaccinations(recordsData);
+      setIsLoadingVaccinations(false);
+    }, (err) => {
+      console.error(`Error fetching vaccinations for pet ${params.petId}: `, err);
+      // Don't set a page-level error, just log it or show a small indicator in the tab
+      toast({ title: "Error", description: "Could not load vaccination records for this pet.", variant: "destructive"});
+      setIsLoadingVaccinations(false);
+    });
+     return () => unsubscribeVaccinations();
+  }, [user, params.petId, toast]);
+
+
+  async function onAddVaccination(values: VaccinationFormValues) {
+    if (!user || !pet) {
+      toast({ title: "Error", description: "User or pet data missing.", variant: "destructive" });
+      return;
+    }
+    try {
+      await addDoc(collection(db, "vaccinations"), {
+        userId: user.uid,
+        petId: pet.id,
+        petName: pet.name, // Denormalize for easier querying on overview pages
+        vaccineName: values.vaccineName,
+        dateAdministered: format(values.dateAdministered, "yyyy-MM-dd"),
+        nextDueDate: values.nextDueDate ? format(values.nextDueDate, "yyyy-MM-dd") : null,
+        veterinarian: values.veterinarian,
+        createdAt: serverTimestamp(),
+      });
+      toast({ title: "Success", description: "Vaccination record added." });
+      vaccinationForm.reset();
+      setIsVaccinationDialogOpen(false);
+    } catch (e) {
+      console.error("Error adding vaccination record: ", e);
+      toast({ title: "Error", description: "Could not add vaccination record.", variant: "destructive" });
+    }
+  }
+
+
+  if (authLoading || isLoadingPet) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -214,12 +300,101 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Vaccination Records</CardTitle>
-                <CardDescription>Track {pet.name}&apos;s vaccination history and upcoming due dates. (Mock Data)</CardDescription>
+                <CardDescription>Track {pet.name}&apos;s vaccination history and upcoming due dates.</CardDescription>
               </div>
-              <Button size="sm" variant="outline" disabled><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
+               <Dialog open={isVaccinationDialogOpen} onOpenChange={setIsVaccinationDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Add Vaccination Record</DialogTitle>
+                    <DialogDescription>Enter the details for {pet.name}&apos;s new vaccination.</DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={vaccinationForm.handleSubmit(onAddVaccination)} className="space-y-4 py-4">
+                    <div>
+                      <Label htmlFor="vaccineName">Vaccine Name</Label>
+                      <Input id="vaccineName" {...vaccinationForm.register("vaccineName")} />
+                      {vaccinationForm.formState.errors.vaccineName && <p className="text-xs text-destructive mt-1">{vaccinationForm.formState.errors.vaccineName.message}</p>}
+                    </div>
+                    <Controller
+                        name="dateAdministered"
+                        control={vaccinationForm.control}
+                        render={({ field }) => (
+                          <div className="space-y-1">
+                            <Label>Date Administered</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className="w-full justify-start text-left font-normal"
+                                >
+                                  <CalendarIconLucide className="mr-2 h-4 w-4" />
+                                  {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  onSelect={field.onChange}
+                                  initialFocus
+                                />
+                              </PopoverContent>
+                            </Popover>
+                             {vaccinationForm.formState.errors.dateAdministered && <p className="text-xs text-destructive mt-1">{vaccinationForm.formState.errors.dateAdministered.message}</p>}
+                          </div>
+                        )}
+                      />
+                    <Controller
+                        name="nextDueDate"
+                        control={vaccinationForm.control}
+                        render={({ field }) => (
+                           <div className="space-y-1">
+                            <Label>Next Due Date (Optional)</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant={"outline"}
+                                  className="w-full justify-start text-left font-normal"
+                                >
+                                  <CalendarIconLucide className="mr-2 h-4 w-4" />
+                                  {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                  mode="single"
+                                  selected={field.value}
+                                  onSelect={field.onChange}
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        )}
+                      />
+                    <div>
+                      <Label htmlFor="veterinarian">Veterinarian</Label>
+                      <Input id="veterinarian" {...vaccinationForm.register("veterinarian")} />
+                       {vaccinationForm.formState.errors.veterinarian && <p className="text-xs text-destructive mt-1">{vaccinationForm.formState.errors.veterinarian.message}</p>}
+                    </div>
+                     <DialogFooter>
+                      <Button type="button" variant="ghost" onClick={() => setIsVaccinationDialogOpen(false)}>Cancel</Button>
+                      <Button type="submit" disabled={vaccinationForm.formState.isSubmitting}>
+                        {vaccinationForm.formState.isSubmitting ? "Saving..." : "Save Record"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
-              {vaccinations.length > 0 ? (
+              {isLoadingVaccinations ? (
+                 <div className="flex justify-center items-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <p className="ml-2 text-muted-foreground">Loading vaccinations...</p>
+                 </div>
+              ) : petVaccinations.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -231,14 +406,18 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {vaccinations.map((vax) => (
+                    {petVaccinations.map((vax) => (
                       <TableRow key={vax.id}>
-                        <TableCell className="font-medium">{vax.name}</TableCell>
-                        <TableCell>{vax.date}</TableCell>
+                        <TableCell className="font-medium">{vax.vaccineName}</TableCell>
+                        <TableCell>{format(new Date(vax.dateAdministered), "MMM dd, yyyy")}</TableCell>
                         <TableCell>
-                          <Badge variant={new Date(vax.nextDueDate) < new Date() ? "destructive" : "default"}>
-                            {vax.nextDueDate}
-                          </Badge>
+                          {vax.nextDueDate ? (
+                            <Badge variant={new Date(vax.nextDueDate) < new Date() ? "destructive" : "default"}>
+                              {format(new Date(vax.nextDueDate), "MMM dd, yyyy")}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">N/A</span>
+                          )}
                         </TableCell>
                         <TableCell>{vax.veterinarian}</TableCell>
                         <TableCell className="text-right">
@@ -249,7 +428,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                   </TableBody>
                 </Table>
               ) : (
-                <p className="text-muted-foreground text-center py-4">No vaccination records found for {pet.name}.</p>
+                <p className="text-muted-foreground text-center py-4">No vaccination records found for {pet.name}. Add one to get started!</p>
               )}
             </CardContent>
           </Card>
@@ -380,3 +559,6 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     </>
   );
 }
+
+
+    
