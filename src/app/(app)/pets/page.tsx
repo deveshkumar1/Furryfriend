@@ -11,11 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
-import { useAuth } from '@/context/AuthContext'; // Import useAuth
+import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 
 interface Pet extends DocumentData {
-  id: string; 
+  id: string;
   name: string;
   species: string;
   breed?: string;
@@ -27,36 +27,46 @@ interface Pet extends DocumentData {
   color?: string;
   weight?: string;
   notes?: string;
-  userId?: string; 
+  userId?: string;
   createdAt?: any; // To match Firestore timestamp for ordering
 }
 
 export default function PetsPage() {
-  const { user, loading: authLoading } = useAuth(); // Get user and auth loading state
+  const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [pets, setPets] = useState<Pet[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // For Firestore data loading
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) {
-      setIsLoading(true); 
+      setIsLoading(true);
       return;
     }
 
     if (!user) {
       setIsLoading(false);
-      setPets([]); 
-      // The component will render the "Access Denied" state based on !user && !authLoading
+      setPets([]);
+      setError("User not authenticated. Please log in to see your pets.");
       return;
+    }
+
+    if (!user.uid) {
+        setIsLoading(false);
+        setPets([]);
+        setError("User authenticated, but UID is missing. Cannot fetch pets.");
+        console.error("AuthContext user object is present, but user.uid is missing:", user);
+        return;
     }
 
     setIsLoading(true);
     setError(null);
-    
+
+    console.log(`Attempting to fetch pets for user ID: ${user.uid}`);
+
     const q = query(
-      collection(db, "pets"), 
-      where("userId", "==", user.uid), 
+      collection(db, "pets"),
+      where("userId", "==", user.uid),
       orderBy("createdAt", "desc")
     );
 
@@ -67,16 +77,17 @@ export default function PetsPage() {
       });
       setPets(petsData);
       setIsLoading(false);
+      console.log("Pets loaded successfully:", petsData);
     }, (err) => {
-      console.error("Error fetching pets: ", err);
-      setError(`Failed to load pets. Firestore error: ${err.message}. Check console for details, especially for missing index creation links.`);
+      console.error("Firestore error in onSnapshot (PetsPage):", err); // Detailed error log
+      setError(`Error loading pets. Firestore error: ${err.name} - ${err.message}. Check browser console for full details (may include index creation link or permission issues).`);
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [user, authLoading]); // Removed router from dependencies as it's not used in the effect
+  }, [user, authLoading]);
 
-  if (authLoading || isLoading) { 
+  if (authLoading || isLoading) {
     return (
       <>
         <PageHeader
@@ -101,8 +112,8 @@ export default function PetsPage() {
       </>
     );
   }
-  
-  if (!user && !authLoading) { 
+
+  if (!user && !authLoading) {
      return (
       <>
       <PageHeader
@@ -137,7 +148,7 @@ export default function PetsPage() {
           <CardHeader>
             <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
             <CardTitle className="text-destructive">Error Loading Pets</CardTitle>
-            <CardDescription>{error}</CardDescription>
+            <CardDescription>{error}</CardDescription> {/* This will now display the more detailed Firestore error name/message */}
           </CardHeader>
            <CardContent>
             <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
@@ -183,12 +194,12 @@ export default function PetsPage() {
           {pets.map((pet) => (
             <Card key={pet.id} className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300">
               <div className="relative h-48 w-full">
-                <Image 
-                  src={pet.imageUrl || 'https://placehold.co/300x200.png'} 
-                  alt={pet.name} 
-                  fill 
-                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" 
-                  style={{ objectFit: 'cover' }} 
+                <Image
+                  src={pet.imageUrl || 'https://placehold.co/300x200.png'}
+                  alt={pet.name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  style={{ objectFit: 'cover' }}
                   data-ai-hint={pet.dataAiHint || pet.species?.toLowerCase() || 'animal'}
                   onError={(e) => {
                     (e.target as HTMLImageElement).src = 'https://placehold.co/300x200.png';
