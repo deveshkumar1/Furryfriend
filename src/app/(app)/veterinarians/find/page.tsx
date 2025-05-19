@@ -1,9 +1,11 @@
+
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { MapPin, Search, ListFilter } from 'lucide-react';
 import Image from 'next/image';
+import { Badge } from '@/components/ui/badge'; // Added import
 
 // Mock search results
 const mockVets = [
