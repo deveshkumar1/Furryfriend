@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { CreditCard, CheckCircle, XCircle, Star } from 'lucide-react';
+import Link from 'next/link';
 
 const subscriptionTiers = [
   {
