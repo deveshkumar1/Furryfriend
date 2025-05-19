@@ -12,6 +12,7 @@ import { ShieldCheck, PlusCircle, Edit3, AlertTriangle, Loader2 } from 'lucide-r
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
+import { format } from 'date-fns';
 
 interface VaccinationRecord extends DocumentData {
   id: string;
@@ -20,15 +21,10 @@ interface VaccinationRecord extends DocumentData {
   userId: string;
   vaccineName: string;
   dateAdministered: string; // Store as ISO string or convert from Timestamp
-  nextDueDate: string;     // Store as ISO string or convert from Timestamp
+  nextDueDate?: string;     // Store as ISO string or convert from Timestamp
   veterinarian: string;
   createdAt?: any; 
 }
-
-// Feature Gating: This page might require a "premium" subscription.
-// For demo, we'll assume the user has access or adjust this logic as needed.
-const currentUserSubscription = "premium"; // "free", "pro", "premium" <- This should ideally come from userProfile
-const requiredSubscription = "premium";
 
 export default function AllVaccinationsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -49,14 +45,6 @@ export default function AllVaccinationsPage() {
       return;
     }
     
-    // Check subscription level
-    if (currentUserSubscription !== requiredSubscription && requiredSubscription !== "free") {
-        setIsLoading(false);
-        setError(`This feature requires a ${requiredSubscription} subscription.`);
-        setVaccinations([]);
-        return;
-    }
-
     setIsLoading(true);
     setError(null);
 
@@ -69,13 +57,20 @@ export default function AllVaccinationsPage() {
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const recordsData: VaccinationRecord[] = [];
       querySnapshot.forEach((doc) => {
-        recordsData.push({ id: doc.id, ...doc.data() } as VaccinationRecord);
+        const data = doc.data();
+        recordsData.push({ 
+          id: doc.id, 
+          ...data,
+          // Ensure dates are consistently handled, Firestore Timestamps might need .toDate().toISOString()
+          dateAdministered: data.dateAdministered?.toDate ? data.dateAdministered.toDate().toISOString().split('T')[0] : data.dateAdministered,
+          nextDueDate: data.nextDueDate?.toDate ? data.nextDueDate.toDate().toISOString().split('T')[0] : data.nextDueDate,
+        } as VaccinationRecord);
       });
       setVaccinations(recordsData);
       setIsLoading(false);
     }, (err) => {
-      console.error("Error fetching vaccination records: ", err);
-      setError("Failed to load vaccination records. Check console for details.");
+      console.error("Error fetching ALL vaccination records (AllVaccinationsPage): ", err);
+      setError("Failed to load vaccination records. Check browser console for specific Firestore error (likely a missing index or permission issue). Firestore often provides a link to create missing indexes in the console error message.");
       setIsLoading(false);
     });
 
@@ -108,8 +103,8 @@ export default function AllVaccinationsPage() {
       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
         <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2 text-destructive">Error</h2>
-        <p className="text-muted-foreground mb-4">{error}</p>
-        {error.includes("subscription") && (
+        <p className="text-muted-foreground mb-4 px-4 whitespace-pre-wrap">{error}</p>
+         {error.includes("subscription") && (
              <Link href="/subscriptions">
                 <Button>Upgrade Subscription</Button>
             </Link>
@@ -119,8 +114,9 @@ export default function AllVaccinationsPage() {
     );
   }
   
-  const upcomingVaccinations = vaccinations.filter(vax => new Date(vax.nextDueDate) >= new Date());
-  const overdueVaccinations = vaccinations.filter(vax => new Date(vax.nextDueDate) < new Date());
+  const upcomingVaccinations = vaccinations.filter(vax => vax.nextDueDate && new Date(vax.nextDueDate) >= new Date());
+  const overdueVaccinations = vaccinations.filter(vax => vax.nextDueDate && new Date(vax.nextDueDate) < new Date());
+  const otherVaccinations = vaccinations.filter(vax => !vax.nextDueDate);
 
 
   return (
@@ -160,19 +156,23 @@ export default function AllVaccinationsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[...overdueVaccinations, ...upcomingVaccinations].map((vax) => (
-                  <TableRow key={vax.id} className={new Date(vax.nextDueDate) < new Date() ? "bg-destructive/10" : ""}>
+                {[...overdueVaccinations, ...upcomingVaccinations, ...otherVaccinations].map((vax) => (
+                  <TableRow key={vax.id} className={vax.nextDueDate && new Date(vax.nextDueDate) < new Date() ? "bg-destructive/10" : ""}>
                     <TableCell className="font-medium">
                       <Link href={`/pets/${vax.petId}`} className="hover:underline text-primary">
                         {vax.petName}
                       </Link>
                     </TableCell>
                     <TableCell>{vax.vaccineName}</TableCell>
-                    <TableCell>{new Date(vax.dateAdministered).toLocaleDateString()}</TableCell>
+                    <TableCell>{vax.dateAdministered ? format(new Date(vax.dateAdministered), "MMM dd, yyyy") : 'N/A'}</TableCell>
                     <TableCell>
-                      <Badge variant={new Date(vax.nextDueDate) < new Date() ? "destructive" : "default"}>
-                        {new Date(vax.nextDueDate).toLocaleDateString()}
-                      </Badge>
+                      {vax.nextDueDate ? (
+                        <Badge variant={new Date(vax.nextDueDate) < new Date() ? "destructive" : "default"}>
+                          {format(new Date(vax.nextDueDate), "MMM dd, yyyy")}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">N/A</span>
+                      )}
                     </TableCell>
                     <TableCell>{vax.veterinarian}</TableCell>
                     <TableCell className="text-right">
@@ -187,7 +187,7 @@ export default function AllVaccinationsPage() {
           ) : (
             <div className="text-center py-10">
                 <ShieldCheck className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-lg font-semibold text-muted-foreground">No vaccination records found.</p>
+                <p className="text-lg font-semibold text-muted-foreground">No vaccination records found for your pets.</p>
                 <p className="text-sm text-muted-foreground">Add vaccination records from your pet's profile page.</p>
             </div>
           )}
@@ -196,3 +196,4 @@ export default function AllVaccinationsPage() {
     </>
   );
 }
+
