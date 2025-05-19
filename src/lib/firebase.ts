@@ -2,10 +2,9 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth"; // We'll use this later
+import { getAuth } from "firebase/auth"; 
 
-// TODO: Add your own Firebase configuration from your Firebase project settings
-// For security, these should be in environment variables (e.g., .env.local)
+// Firebase configuration using environment variables
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -18,13 +17,14 @@ const firebaseConfig = {
 
 // Initialize Firebase
 let app;
+// Check if Firebase has already been initialized
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
 } else {
-  app = getApp();
+  app = getApp(); // If already initialized, use that instance
 }
 
 const db = getFirestore(app);
-const auth = getAuth(app); // We'll use this later
+const auth = getAuth(app);
 
 export { app, db, auth };
