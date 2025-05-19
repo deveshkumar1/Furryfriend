@@ -28,6 +28,7 @@ interface Pet extends DocumentData {
   weight?: string;
   notes?: string;
   userId?: string; 
+  createdAt?: any; // To match Firestore timestamp for ordering
 }
 
 export default function PetsPage() {
@@ -39,15 +40,14 @@ export default function PetsPage() {
 
   useEffect(() => {
     if (authLoading) {
-      setIsLoading(true); // Keep loading if auth state is still resolving
+      setIsLoading(true); 
       return;
     }
 
     if (!user) {
-      // This should ideally be caught by AppLayout redirect, but as a safeguard
-      // router.push('/'); // Or display a message
       setIsLoading(false);
-      setPets([]); // Clear pets if no user
+      setPets([]); 
+      // The component will render the "Access Denied" state based on !user && !authLoading
       return;
     }
 
@@ -56,7 +56,7 @@ export default function PetsPage() {
     
     const q = query(
       collection(db, "pets"), 
-      where("userId", "==", user.uid), // Filter by logged-in user's ID
+      where("userId", "==", user.uid), 
       orderBy("createdAt", "desc")
     );
 
@@ -69,14 +69,14 @@ export default function PetsPage() {
       setIsLoading(false);
     }, (err) => {
       console.error("Error fetching pets: ", err);
-      setError("Failed to load pets. Please try again.");
+      setError(`Failed to load pets. Firestore error: ${err.message}. Check console for details, especially for missing index creation links.`);
       setIsLoading(false);
     });
 
     return () => unsubscribe();
-  }, [user, authLoading, router]);
+  }, [user, authLoading]); // Removed router from dependencies as it's not used in the effect
 
-  if (authLoading || isLoading) { // Check both auth and data loading
+  if (authLoading || isLoading) { 
     return (
       <>
         <PageHeader
@@ -102,7 +102,7 @@ export default function PetsPage() {
     );
   }
   
-  if (!user && !authLoading) { // If auth is done loading and still no user
+  if (!user && !authLoading) { 
      return (
       <>
       <PageHeader
@@ -129,23 +129,19 @@ export default function PetsPage() {
      return (
       <>
         <PageHeader
-          title="My Pets"
-          description="Manage profiles for all your beloved pets."
-          icon={PawPrint}
-           action={
-            <Link href="/pets/new">
-              <Button>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add New Pet
-              </Button>
-            </Link>
-          }
+          title="Error"
+          description="Could not load your pets."
+          icon={AlertTriangle}
         />
         <Card className="text-center py-12 shadow-lg border-destructive">
           <CardHeader>
-            <PawPrint className="mx-auto h-12 w-12 text-destructive mb-4" />
+            <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
             <CardTitle className="text-destructive">Error Loading Pets</CardTitle>
             <CardDescription>{error}</CardDescription>
           </CardHeader>
+           <CardContent>
+            <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
+          </CardContent>
         </Card>
       </>
     );
@@ -231,3 +227,4 @@ export default function PetsPage() {
     </>
   );
 }
+
