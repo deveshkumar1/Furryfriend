@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -36,8 +37,7 @@ export interface NavItem {
   badge?: string | number;
   variant?: 'default' | 'ghost';
   children?: NavItem[];
-  disabled?: boolean; // For feature gating
-  requiredSubscription?: string; // For feature gating
+  disabled?: boolean; 
 }
 
 const navItems: NavItem[] = [
@@ -49,8 +49,8 @@ const navItems: NavItem[] = [
     children: [
       { title: 'All Pets', href: '/pets', icon: PawPrint },
       { title: 'Add New Pet', href: '/pets/new', icon: PawPrint },
-      { title: 'Vaccination Records', href: '/pets/vaccinations', icon: ShieldCheck, requiredSubscription: 'premium' },
-      { title: 'Medication Tracker', href: '/pets/medications', icon: HeartPulse, requiredSubscription: 'premium' },
+      { title: 'Vaccination Records', href: '/pets/vaccinations', icon: ShieldCheck },
+      { title: 'Medication Tracker', href: '/pets/medications', icon: HeartPulse },
     ],
   },
   {
@@ -64,14 +64,12 @@ const navItems: NavItem[] = [
   },
   { title: 'Appointments', href: '/appointments', icon: CalendarDays, badge: 3 },
   { title: 'Notifications', href: '/notifications', icon: Bell, badge: 'New' },
-  { title: 'Medical Records', href: '/medical-records', icon: FileText, disabled: false, requiredSubscription: 'pro' },
+  { title: 'Medical Records', href: '/medical-records', icon: FileText },
   { title: 'Subscriptions', href: '/subscriptions', icon: CreditCard },
-  { title: 'Marketplace', href: '/marketplace', icon: ShoppingCart, disabled: true },
+  { title: 'Marketplace', href: '/marketplace', icon: ShoppingCart },
   { title: 'Settings', href: '/settings', icon: Settings },
 ];
 
-// Mock current subscription for feature gating demonstration
-const currentUserSubscription = "free"; // "free", "pro", "premium"
 
 function NavLinkContent({ item }: { item: NavItem }) {
   return (
@@ -93,17 +91,9 @@ export function MainNav() {
   const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
     const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
     
-    // Feature Gating Logic (simplified)
-    let isDisabled = item.disabled;
-    if (item.requiredSubscription) {
-      if (currentUserSubscription === 'free' && (item.requiredSubscription === 'pro' || item.requiredSubscription === 'premium')) {
-        isDisabled = true;
-      } else if (currentUserSubscription === 'pro' && item.requiredSubscription === 'premium') {
-        isDisabled = true;
-      }
-    }
+    const isDisabled = item.disabled; // Simplified: only relies on item.disabled property
     
-    const tooltipContent = isDisabled && item.requiredSubscription ? `Requires ${item.requiredSubscription} plan` : item.title;
+    const tooltipContent = item.title;
 
     if (item.children && item.children.length > 0) {
       return (
