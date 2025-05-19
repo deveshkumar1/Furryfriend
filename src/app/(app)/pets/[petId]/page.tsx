@@ -1,33 +1,39 @@
+
+"use client";
+
 import Image from 'next/image';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, CalendarIcon, FileText, Download, Users } from 'lucide-react';
+import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, CalendarIcon, FileText, Download, Users, Loader2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+// import { Checkbox } from '@/components/ui/checkbox'; // Not used
+// import { Label } from '@/components/ui/label'; // Not used
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, LineChart as RechartsLineChart, Line } from 'recharts';
 import { ChartTooltipContent } from '@/components/ui/chart';
+import { useEffect, useState } from 'react';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot, DocumentData } from 'firebase/firestore';
 
-// Mock data, replace with actual data fetching based on params.petId
-const pet = {
-  id: '1',
-  name: 'Buddy',
-  species: 'Dog',
-  breed: 'Golden Retriever',
-  age: '3 years',
-  dateOfBirth: '2021-05-10',
-  gender: 'Male',
-  color: 'Golden',
-  weight: '70 lbs',
-  notes: 'Loves playing fetch and is allergic to chicken.',
-  imageUrl: 'https://placehold.co/400x300.png',
-  dataAiHint: 'golden retriever happy',
-};
+interface PetData extends DocumentData {
+  id: string;
+  name: string;
+  species: string;
+  breed?: string;
+  age?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  color?: string;
+  weight?: string;
+  notes?: string;
+  imageUrl?: string;
+  dataAiHint?: string;
+}
 
+// Mock data for sub-tabs, replace with Firestore fetching later
 const vaccinations = [
   { id: 'v1', name: 'Rabies', date: '2023-06-15', nextDueDate: '2024-06-15', veterinarian: 'Dr. Smith' },
   { id: 'v2', name: 'Distemper', date: '2023-06-15', nextDueDate: '2024-06-15', veterinarian: 'Dr. Smith' },
@@ -50,18 +56,83 @@ const healthDataActivity = [
 
 
 export default function PetProfilePage({ params }: { params: { petId: string } }) {
-  // In a real app, fetch pet data using params.petId
-  if (!pet) return <div>Pet not found.</div>;
+  const [pet, setPet] = useState<PetData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!params.petId) {
+      setError("Pet ID is missing.");
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    const petDocRef = doc(db, "pets", params.petId);
+
+    const unsubscribe = onSnapshot(petDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setPet({ id: docSnap.id, ...docSnap.data() } as PetData);
+      } else {
+        setError("Pet not found.");
+        setPet(null);
+      }
+      setIsLoading(false);
+    }, (err) => {
+      console.error("Error fetching pet profile: ", err);
+      setError("Failed to load pet profile.");
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [params.petId]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)]">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Loading pet profile...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
+        <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
+        <h2 className="text-2xl font-semibold mb-2 text-destructive">Error</h2>
+        <p className="text-muted-foreground mb-4">{error}</p>
+        <Link href="/pets">
+          <Button variant="outline">Back to My Pets</Button>
+        </Link>
+      </div>
+    );
+  }
+  
+  if (!pet) {
+     return ( // Should be caught by error state, but as a fallback
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
+        <PawPrint className="w-16 h-16 text-muted-foreground mb-4" />
+        <h2 className="text-2xl font-semibold mb-2">Pet Not Found</h2>
+        <p className="text-muted-foreground mb-4">The pet profile could not be loaded.</p>
+        <Link href="/pets">
+          <Button variant="outline">Back to My Pets</Button>
+        </Link>
+      </div>
+    );
+  }
+
 
   return (
     <>
       <PageHeader
         title={pet.name}
-        description={`${pet.species} - ${pet.breed}`}
+        description={`${pet.species} ${pet.breed ? `- ${pet.breed}` : ''}`}
         icon={PawPrint}
         action={
           <Link href={`/pets/${pet.id}/edit`}> {/* Placeholder for edit page */}
-            <Button variant="outline">
+            <Button variant="outline" disabled> {/* TODO: Enable edit functionality */}
               <Edit3 className="mr-2 h-4 w-4" /> Edit Profile
             </Button>
           </Link>
@@ -83,22 +154,33 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
               <CardTitle>Pet Details</CardTitle>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-6">
-              <div className="relative w-full h-64 md:h-auto rounded-lg overflow-hidden shadow-md">
-                <Image src={pet.imageUrl} alt={pet.name} layout="fill" objectFit="cover" data-ai-hint={pet.dataAiHint} />
+              <div className="relative w-full h-64 md:min-h-[300px] rounded-lg overflow-hidden shadow-md bg-muted">
+                <Image 
+                  src={pet.imageUrl || 'https://placehold.co/400x300.png'} 
+                  alt={pet.name} 
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  style={{ objectFit: 'cover' }}
+                  data-ai-hint={pet.dataAiHint || pet.species?.toLowerCase() || 'animal'}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'https://placehold.co/400x300.png';
+                     (e.target as HTMLImageElement).dataset.aiHint = 'placeholder animal';
+                  }}
+                />
               </div>
               <div className="space-y-4">
                 <div><strong className="text-foreground">Name:</strong> {pet.name}</div>
                 <div><strong className="text-foreground">Species:</strong> {pet.species}</div>
-                <div><strong className="text-foreground">Breed:</strong> {pet.breed}</div>
-                <div><strong className="text-foreground">Age:</strong> {pet.age}</div>
-                <div><strong className="text-foreground">Date of Birth:</strong> {pet.dateOfBirth}</div>
-                <div><strong className="text-foreground">Gender:</strong> {pet.gender}</div>
-                <div><strong className="text-foreground">Color:</strong> {pet.color}</div>
-                <div><strong className="text-foreground">Weight:</strong> {pet.weight}</div>
+                {pet.breed && <div><strong className="text-foreground">Breed:</strong> {pet.breed}</div>}
+                {pet.age && <div><strong className="text-foreground">Age:</strong> {pet.age}</div>}
+                {pet.dateOfBirth && <div><strong className="text-foreground">Date of Birth:</strong> {pet.dateOfBirth}</div>}
+                {pet.gender && pet.gender !== "unknown" && <div><strong className="text-foreground">Gender:</strong> {pet.gender}</div>}
+                {pet.color && <div><strong className="text-foreground">Color:</strong> {pet.color}</div>}
+                {pet.weight && <div><strong className="text-foreground">Weight:</strong> {pet.weight}</div>}
                 {pet.notes && (
                   <div className="pt-2 border-t">
                     <strong className="text-foreground">Notes:</strong>
-                    <p className="text-sm text-muted-foreground mt-1">{pet.notes}</p>
+                    <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{pet.notes}</p>
                   </div>
                 )}
               </div>
@@ -111,9 +193,9 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Vaccination Records</CardTitle>
-                <CardDescription>Track {pet.name}&apos;s vaccination history and upcoming due dates.</CardDescription>
+                <CardDescription>Track {pet.name}&apos;s vaccination history and upcoming due dates. (Mock Data)</CardDescription>
               </div>
-              <Button size="sm" variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button> {/* Placeholder */}
+              <Button size="sm" variant="outline" disabled><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
             </CardHeader>
             <CardContent>
               {vaccinations.length > 0 ? (
@@ -139,7 +221,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                         </TableCell>
                         <TableCell>{vax.veterinarian}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon"><Edit3 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" disabled><Edit3 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -157,9 +239,9 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
              <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Medication Log</CardTitle>
-                <CardDescription>Manage {pet.name}&apos;s current and past medications.</CardDescription>
+                <CardDescription>Manage {pet.name}&apos;s current and past medications. (Mock Data)</CardDescription>
               </div>
-              <Button size="sm" variant="outline"><PlusCircle className="mr-2 h-4 w-4" /> Add Medication</Button> {/* Placeholder */}
+              <Button size="sm" variant="outline" disabled><PlusCircle className="mr-2 h-4 w-4" /> Add Medication</Button>
             </CardHeader>
             <CardContent>
               {medications.length > 0 ? (
@@ -183,7 +265,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                         <TableCell>{med.endDate}</TableCell>
                         <TableCell>{med.veterinarian}</TableCell>
                         <TableCell className="text-right">
-                           <Button variant="ghost" size="icon"><Edit3 className="h-4 w-4" /></Button>
+                           <Button variant="ghost" size="icon" disabled><Edit3 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -197,6 +279,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
         </TabsContent>
 
         <TabsContent value="health_charts">
+           <CardDescription className="mb-4 text-center">Health chart data below is mock data and not connected to this pet.</CardDescription>
           <div className="grid md:grid-cols-2 gap-6">
             <Card className="shadow-lg">
               <CardHeader>
@@ -209,7 +292,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                     <XAxis dataKey="date" stroke="hsl(var(--foreground))" />
                     <YAxis stroke="hsl(var(--foreground))" />
-                    <RechartsTooltip content={<ChartTooltipContent nameKey="date" labelKey="weight" unit=" lbs" />} cursor={false}/>
+                    <RechartsTooltip content={<ChartTooltipContent nameKey="date" labelKey="weight" />} cursor={false}/>
                     <Line type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4, fill: "hsl(var(--primary))" }} activeDot={{ r: 6 }} />
                   </RechartsLineChart>
                 </ResponsiveContainer>
@@ -239,30 +322,29 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
           <Card className="shadow-lg">
             <CardHeader>
               <CardTitle>Medical Records & Sharing</CardTitle>
-              <CardDescription>Export {pet.name}&apos;s records or share them with veterinarians.</CardDescription>
+              <CardDescription>Export {pet.name}&apos;s records or share them with veterinarians. (Functionality Coming Soon)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="p-4 border rounded-lg bg-secondary/30">
                 <h3 className="font-semibold text-lg mb-2 flex items-center"><FileText className="mr-2 h-5 w-5 text-primary" /> Export Records</h3>
                 <p className="text-sm text-muted-foreground mb-3">Download a comprehensive PDF of {pet.name}&apos;s medical history, including vaccinations and medications.</p>
-                <Button><Download className="mr-2 h-4 w-4" /> Export as PDF</Button>
+                <Button disabled><Download className="mr-2 h-4 w-4" /> Export as PDF</Button>
               </div>
               <div className="p-4 border rounded-lg bg-secondary/30">
                 <h3 className="font-semibold text-lg mb-2 flex items-center"><Share2 className="mr-2 h-5 w-5 text-accent" /> Share with Veterinarian</h3>
                 <p className="text-sm text-muted-foreground mb-3">Grant temporary access to {pet.name}&apos;s records to a veterinarian. Requires Pro plan.</p>
-                {/* Feature Gating Example */}
                 {true ? ( // Replace with actual subscription check
                   <div className="space-y-3">
-                    <Label htmlFor="vetEmail">Veterinarian&apos;s Email</Label>
+                    {/* <Label htmlFor="vetEmail">Veterinarian&apos;s Email</Label> */} {/* Label not used with current setup */}
                     <div className="flex gap-2">
-                       <input id="vetEmail" type="email" placeholder="vet@example.com" className="w-full p-2 border rounded-md" />
-                       <Button variant="outline">Send Invite</Button>
+                       <Input id="vetEmail" type="email" placeholder="vet@example.com" className="w-full p-2 border rounded-md" disabled />
+                       <Button variant="outline" disabled>Send Invite</Button>
                     </div>
                     <div className="mt-4">
                       <h4 className="font-medium text-md mb-1 flex items-center"><Users className="mr-2 h-4 w-4"/>Current Sharing Permissions:</h4>
                       <ul className="text-sm list-disc list-inside pl-2 text-muted-foreground">
-                        <li>Dr. Smith (Primary Vet) - Full Access</li>
-                        <li>Animal Hospital XYZ (Emergency Contact) - Read-only until 2024-09-01</li>
+                        <li>Dr. Smith (Primary Vet) - Full Access (Mock)</li>
+                        <li>Animal Hospital XYZ (Emergency Contact) - Read-only until 2024-09-01 (Mock)</li>
                       </ul>
                     </div>
                   </div>
