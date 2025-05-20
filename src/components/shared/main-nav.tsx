@@ -48,7 +48,7 @@ const navItems: NavItem[] = [
     icon: PawPrint,
     children: [
       { title: 'All Pets', href: '/pets', icon: PawPrint },
-      { title: 'Add New Pet', href: '/pets/new', icon: PawPrint },
+      // { title: 'Add New Pet', href: '/pets/new', icon: PawPrint }, // Removed this line
       { title: 'Vaccination Records', href: '/pets/vaccinations', icon: ShieldCheck },
       { title: 'Medication Tracker', href: '/pets/medications', icon: HeartPulse },
     ],
@@ -89,9 +89,9 @@ export function MainNav() {
   const pathname = usePathname();
 
   const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
-    const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+    const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '/' && pathname.startsWith(item.href));
     
-    const isDisabled = item.disabled; // Simplified: only relies on item.disabled property
+    const isDisabled = item.disabled; 
     
     const tooltipContent = item.title;
 
