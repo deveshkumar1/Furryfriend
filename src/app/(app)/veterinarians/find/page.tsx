@@ -23,10 +23,10 @@ interface Vet {
 }
 
 const allMockVets: Vet[] = [
-    { id: "1", name: "City Animal Hospital", address: "789 Pine St, Anytown", distance: "1.2 miles", rating: 4.5, services: ["General Care", "Surgery", "Dental"], imageUrl: 'https://placehold.co/200x150.png?text=City+Animal+Hospital', dataAiHint: 'animal hospital building' },
-    { id: "2", name: "Suburb Veterinary Clinic", address: "101 Maple Dr, Suburbia", distance: "3.5 miles", rating: 4.8, services: ["Wellness Exams", "Vaccinations"], imageUrl: 'https://placehold.co/200x150.png?text=Suburb+Vet+Clinic', dataAiHint: 'veterinary clinic exterior' },
-    { id: "3", name: "Green Valley Vets", address: "45 Green Valley Rd, Countryside", distance: "5.0 miles", rating: 4.2, services: ["Holistic Care", "Acupuncture", "General Care"], imageUrl: 'https://placehold.co/200x150.png?text=Green+Valley+Vets', dataAiHint: 'rural vet clinic' },
-    { id: "4", name: "Pet Emergency Center", address: "123 Emergency Ln, Anytown", distance: "0.5 miles", rating: 4.9, services: ["Emergency Care", "Critical Care", "Surgery"], imageUrl: 'https://placehold.co/200x150.png?text=Pet+Emergency', dataAiHint: 'emergency vet sign' },
+    { id: "1", name: "City Animal Hospital", address: "789 Pine St, Anytown, USA 90210", distance: "1.2 miles", rating: 4.5, services: ["General Care", "Surgery", "Dental"], imageUrl: 'https://placehold.co/200x150.png?text=City+Animal+Hospital', dataAiHint: 'animal hospital building' },
+    { id: "2", name: "Suburb Veterinary Clinic", address: "101 Maple Dr, Suburbia, USA 90211", distance: "3.5 miles", rating: 4.8, services: ["Wellness Exams", "Vaccinations"], imageUrl: 'https://placehold.co/200x150.png?text=Suburb+Vet+Clinic', dataAiHint: 'veterinary clinic exterior' },
+    { id: "3", name: "Green Valley Vets", address: "45 Green Valley Rd, Countryside, USA 12345", distance: "5.0 miles", rating: 4.2, services: ["Holistic Care", "Acupuncture", "General Care"], imageUrl: 'https://placehold.co/200x150.png?text=Green+Valley+Vets', dataAiHint: 'rural vet clinic' },
+    { id: "4", name: "Pet Emergency Center", address: "123 Emergency Ln, Anytown, USA 90210", distance: "0.5 miles", rating: 4.9, services: ["Emergency Care", "Critical Care", "Surgery"], imageUrl: 'https://placehold.co/200x150.png?text=Pet+Emergency', dataAiHint: 'emergency vet sign' },
 ];
 
 
@@ -40,16 +40,17 @@ export default function FindVeterinarianPage() {
     console.log('[FindVetPage] Current locationSearch:', `"${locationSearch}"`);
     console.log('[FindVetPage] Current servicesSearch:', `"${servicesSearch}"`);
 
-    let filtered = [...allMockVets]; // Start with a copy of all vets
+    let filtered = [...allMockVets]; 
 
     const cleanLocationSearch = locationSearch.trim().toLowerCase();
     const cleanServicesSearch = servicesSearch.trim().toLowerCase();
 
     if (cleanLocationSearch) {
       filtered = filtered.filter(vet =>
-        vet.address.toLowerCase().includes(cleanLocationSearch)
+        vet.address.toLowerCase().includes(cleanLocationSearch) ||
+        vet.name.toLowerCase().includes(cleanLocationSearch) // Also search by name
       );
-      console.log('[FindVetPage] After location filter:', filtered.map(v => v.name));
+      console.log('[FindVetPage] After location/name filter:', filtered.map(v => v.name));
     }
 
     if (cleanServicesSearch) {
@@ -64,9 +65,7 @@ export default function FindVeterinarianPage() {
     console.log('[FindVetPage] Final filteredVets count to set:', filtered.length);
     setDisplayedVets(filtered);
   };
-
-  // This useEffect resets the list if both search fields are cleared by the user.
-  // It does not perform search-as-you-type.
+  
   useEffect(() => {
     const cleanLocationSearch = locationSearch.trim();
     const cleanServicesSearch = servicesSearch.trim();
@@ -94,7 +93,7 @@ export default function FindVeterinarianPage() {
           <div className="flex flex-col md:flex-row gap-2 mb-4">
             <Input
               type="text"
-              placeholder="Enter address, city, or zip code..."
+              placeholder="Enter address, city, zip, or vet name..."
               className="flex-grow"
               value={locationSearch}
               onChange={(e) => setLocationSearch(e.target.value)}
@@ -160,3 +159,4 @@ export default function FindVeterinarianPage() {
     </>
   );
 }
+
