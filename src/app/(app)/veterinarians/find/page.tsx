@@ -37,20 +37,24 @@ export default function FindVeterinarianPage() {
 
   const handleSearch = () => {
     console.log('[FindVetPage] handleSearch triggered.');
-    console.log('[FindVetPage] Current locationSearch:', `"${locationSearch}"`);
-    console.log('[FindVetPage] Current servicesSearch:', `"${servicesSearch}"`);
+    console.log('[FindVetPage] Initial allMockVets:', JSON.stringify(allMockVets.map(v => ({name: v.name, address: v.address, services: v.services}))));
+    console.log('[FindVetPage] Current locationSearch (raw input):', `"${locationSearch}"`);
+    console.log('[FindVetPage] Current servicesSearch (raw input):', `"${servicesSearch}"`);
 
     let filtered = [...allMockVets]; 
 
     const cleanLocationSearch = locationSearch.trim().toLowerCase();
     const cleanServicesSearch = servicesSearch.trim().toLowerCase();
 
+    console.log('[FindVetPage] Cleaned locationSearch for filtering:', `"${cleanLocationSearch}"`);
+    console.log('[FindVetPage] Cleaned servicesSearch for filtering:', `"${cleanServicesSearch}"`);
+
     if (cleanLocationSearch) {
       filtered = filtered.filter(vet =>
         vet.address.toLowerCase().includes(cleanLocationSearch) ||
-        vet.name.toLowerCase().includes(cleanLocationSearch) // Also search by name
+        vet.name.toLowerCase().includes(cleanLocationSearch)
       );
-      console.log('[FindVetPage] After location/name filter:', filtered.map(v => v.name));
+      console.log(`[FindVetPage] After location/name filter (term: "${cleanLocationSearch}"):`, filtered.map(v => v.name));
     }
 
     if (cleanServicesSearch) {
@@ -59,35 +63,41 @@ export default function FindVeterinarianPage() {
           service.toLowerCase().includes(cleanServicesSearch)
         )
       );
-      console.log('[FindVetPage] After services filter:', filtered.map(v => v.name));
+      console.log(`[FindVetPage] After services filter (term: "${cleanServicesSearch}"):`, filtered.map(v => v.name));
     }
 
     console.log('[FindVetPage] Final filteredVets count to set:', filtered.length);
+    console.log('[FindVetPage] Final filteredVets names:', filtered.map(v => v.name));
     setDisplayedVets(filtered);
   };
   
   useEffect(() => {
+    // This useEffect will reset to all vets if both search fields are cleared.
     const cleanLocationSearch = locationSearch.trim();
     const cleanServicesSearch = servicesSearch.trim();
 
     if (!cleanLocationSearch && !cleanServicesSearch) {
-      console.log('[FindVetPage] useEffect: Both search fields empty, resetting to all vets.');
-      setDisplayedVets([...allMockVets]);
+      // Only reset if both are truly empty, and not on initial mount if they start empty.
+      // Check if displayedVets is not already allMockVets to avoid unnecessary sets.
+      if (displayedVets.length !== allMockVets.length || !displayedVets.every((v, i) => v.id === allMockVets[i].id)) {
+        console.log('[FindVetPage] useEffect: Both search fields empty, resetting to all vets.');
+        setDisplayedVets([...allMockVets]);
+      }
     }
-  }, [locationSearch, servicesSearch]);
+  }, [locationSearch, servicesSearch, displayedVets]);
 
 
   return (
     <>
       <PageHeader
         title="Find a Veterinarian"
-        description="Search for veterinarians in your area. Map integration is a placeholder."
+        description="Search for veterinarians by name, location (address, city, zip), or services. Map integration is a placeholder."
         icon={MapPin}
       />
       <Card className="shadow-lg mb-6">
         <CardHeader>
           <CardTitle>Search Veterinarians</CardTitle>
-          <CardDescription>Enter your location or desired services.</CardDescription>
+          <CardDescription>Enter your location, vet name, or desired services.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row gap-2 mb-4">
@@ -113,7 +123,6 @@ export default function FindVeterinarianPage() {
             </Button>
           </div>
           <div className="h-[400px] bg-muted rounded-lg flex items-center justify-center text-muted-foreground overflow-hidden shadow-inner">
-            {/* Placeholder for Google Maps integration */}
             <Image src="https://placehold.co/800x400.png?text=Veterinarian+Map+Placeholder" alt="Map Placeholder" width={800} height={400} className="object-cover" data-ai-hint="map placeholder"/>
           </div>
         </CardContent>
@@ -159,4 +168,3 @@ export default function FindVeterinarianPage() {
     </>
   );
 }
-
