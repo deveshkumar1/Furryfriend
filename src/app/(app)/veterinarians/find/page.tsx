@@ -18,7 +18,7 @@ interface Vet {
   distance: string;
   rating: number;
   services: string[];
-  imageUrl?: string; // Optional image for display
+  imageUrl?: string;
   dataAiHint?: string;
 }
 
@@ -36,28 +36,44 @@ export default function FindVeterinarianPage() {
   const [displayedVets, setDisplayedVets] = useState<Vet[]>(allMockVets);
 
   const handleSearch = () => {
-    let filteredVets = allMockVets;
+    console.log('[FindVetPage] handleSearch triggered.');
+    console.log('[FindVetPage] Current locationSearch:', `"${locationSearch}"`);
+    console.log('[FindVetPage] Current servicesSearch:', `"${servicesSearch}"`);
 
-    if (locationSearch.trim()) {
-      filteredVets = filteredVets.filter(vet =>
-        vet.address.toLowerCase().includes(locationSearch.toLowerCase())
+    let filtered = [...allMockVets]; // Start with a copy of all vets
+
+    const cleanLocationSearch = locationSearch.trim().toLowerCase();
+    const cleanServicesSearch = servicesSearch.trim().toLowerCase();
+
+    if (cleanLocationSearch) {
+      filtered = filtered.filter(vet =>
+        vet.address.toLowerCase().includes(cleanLocationSearch)
       );
+      console.log('[FindVetPage] After location filter:', filtered.map(v => v.name));
     }
 
-    if (servicesSearch.trim()) {
-      filteredVets = filteredVets.filter(vet =>
+    if (cleanServicesSearch) {
+      filtered = filtered.filter(vet =>
         vet.services.some(service =>
-          service.toLowerCase().includes(servicesSearch.toLowerCase())
+          service.toLowerCase().includes(cleanServicesSearch)
         )
       );
+      console.log('[FindVetPage] After services filter:', filtered.map(v => v.name));
     }
-    setDisplayedVets(filteredVets);
+
+    console.log('[FindVetPage] Final filteredVets count to set:', filtered.length);
+    setDisplayedVets(filtered);
   };
 
-  // Reset to all vets if search terms are cleared (optional behavior)
+  // This useEffect resets the list if both search fields are cleared by the user.
+  // It does not perform search-as-you-type.
   useEffect(() => {
-    if (!locationSearch.trim() && !servicesSearch.trim()) {
-      setDisplayedVets(allMockVets);
+    const cleanLocationSearch = locationSearch.trim();
+    const cleanServicesSearch = servicesSearch.trim();
+
+    if (!cleanLocationSearch && !cleanServicesSearch) {
+      console.log('[FindVetPage] useEffect: Both search fields empty, resetting to all vets.');
+      setDisplayedVets([...allMockVets]);
     }
   }, [locationSearch, servicesSearch]);
 
