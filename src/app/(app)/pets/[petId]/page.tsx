@@ -94,6 +94,7 @@ export default function PetProfilePage() {
   const [isLoadingPet, setIsLoadingPet] = useState(true);
   const [isLoadingVaccinations, setIsLoadingVaccinations] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [vaccinationError, setVaccinationError] = useState<string | null>(null);
   
   const [isVaccinationDialogOpen, setIsVaccinationDialogOpen] = useState(false);
   const [editingVaccination, setEditingVaccination] = useState<VaccinationRecord | null>(null);
@@ -126,6 +127,7 @@ export default function PetProfilePage() {
   // Effect for fetching vaccination data
   useEffect(() => {
     if (!user || !petId) { setIsLoadingVaccinations(false); return; }
+    setVaccinationError(null);
     const q = query(
       collection(db, "vaccinations"),
       where("userId", "==", user.uid),
@@ -138,12 +140,7 @@ export default function PetProfilePage() {
       setIsLoadingVaccinations(false);
     }, (err) => {
       console.error("Error fetching vaccinations: ", err);
-      toast({ 
-        title: "Error", 
-        description: "Could not load vaccination records. This often requires a Firestore index. Check the browser console for a link to create it.",
-        variant: "destructive",
-        duration: 10000 
-      });
+      setVaccinationError("Could not load vaccination records. This often requires a Firestore index. Check the browser console for a link to create it.");
       setIsLoadingVaccinations(false);
     });
     return () => unsubscribeVaccinations();
@@ -153,7 +150,6 @@ export default function PetProfilePage() {
     const file = event.target.files?.[0];
     if (file) {
       setCurrentFile(file);
-      // Create a temporary URL for preview
       setImagePreview(URL.createObjectURL(file));
     }
   };
@@ -180,7 +176,7 @@ export default function PetProfilePage() {
       vaccinationForm.reset({ veterinarian: "", vaccineName: "", nextDueDate: undefined, dateAdministered: undefined });
       handleRemovePreview();
     }
-    setCurrentFile(null); // Always reset the current file on open
+    setCurrentFile(null);
     setIsVaccinationDialogOpen(true);
   };
   
@@ -190,9 +186,7 @@ export default function PetProfilePage() {
     let documentUrl = editingVaccination?.documentUrl || "";
     let storagePath = editingVaccination?.storagePath || "";
 
-    // If a new file is selected, upload it
     if (currentFile) {
-        // If there was an old file, delete it first
         if (editingVaccination?.storagePath) {
             const oldFileRef = ref(storage, editingVaccination.storagePath);
             try {
@@ -214,10 +208,9 @@ export default function PetProfilePage() {
         } catch(e) {
             console.error("Error uploading file: ", e);
             toast({ title: "Upload Error", description: "Could not upload the document.", variant: "destructive" });
-            return; // Stop execution if upload fails
+            return;
         }
     } else if (imagePreview === null && editingVaccination?.storagePath) {
-        // If the preview was removed (and no new file was added), delete the old file
          const oldFileRef = ref(storage, editingVaccination.storagePath);
          try {
             await deleteObject(oldFileRef);
@@ -399,6 +392,14 @@ export default function PetProfilePage() {
             </CardHeader>
             <CardContent>
               {isLoadingVaccinations ? ( <div className="flex justify-center items-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
+              ) : vaccinationError ? (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>
+                    {vaccinationError}
+                  </AlertDescription>
+                </Alert>
               ) : petVaccinations.length > 0 ? (
                 <Table>
                   <TableHeader><TableRow><TableHead>Vaccine</TableHead><TableHead>Date Administered</TableHead><TableHead>Next Due</TableHead><TableHead>Veterinarian</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
@@ -468,5 +469,3 @@ export default function PetProfilePage() {
     </>
   );
 }
-
-    
