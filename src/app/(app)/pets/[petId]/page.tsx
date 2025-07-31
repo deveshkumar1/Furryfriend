@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import Image from 'next/image';
@@ -336,6 +337,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                   <Button size="sm" variant="outline" onClick={() => openDialog(null)} disabled={isLoadingPet}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
+                   {!pet ? <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div> : <>
                   <DialogHeader>
                     <DialogTitle>{editingVaccination ? 'Edit' : 'Add'} Vaccination Record</DialogTitle>
                     <DialogDescription>Enter the details for {pet.name}&apos;s vaccination.</DialogDescription>
@@ -384,6 +386,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                       </Button>
                     </DialogFooter>
                   </form>
+                  </> }
                 </DialogContent>
               </Dialog>
             </CardHeader>
@@ -458,3 +461,6 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     </>
   );
 }
+
+
+    
