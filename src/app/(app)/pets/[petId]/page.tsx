@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, CalendarIcon as CalendarIconLucide, FileText, Download, Users, Loader2, AlertTriangle, Camera, Upload, Link as LinkIcon, Trash2 } from 'lucide-react';
+import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, CalendarIcon as CalendarIconLucide, FileText, Download, Users, Loader2, AlertTriangle, Upload, Link as LinkIcon, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,8 +14,8 @@ import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as 
 import { ChartTooltipContent } from '@/components/ui/chart';
 import { useEffect, useState, useRef } from 'react';
 import { db, storage } from '@/lib/firebase';
-import { doc, onSnapshot, DocumentData, collection, addDoc, serverTimestamp, query, where, orderBy, updateDoc, setDoc } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL, deleteObject } from "firebase/storage";
+import { doc, onSnapshot, DocumentData, collection, addDoc, serverTimestamp, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
@@ -54,6 +54,7 @@ interface VaccinationRecord extends DocumentData {
   nextDueDate?: string;    // Stored as ISO string
   veterinarian: string;
   documentUrl?: string; // URL to the uploaded file in Firebase Storage
+  storagePath?: string; // Path to the file in Firebase Storage for deletion
 }
 
 const vaccinationFormSchema = z.object({
@@ -85,8 +86,6 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [pet, setPet] = useState<PetData | null>(null);
   const [petVaccinations, setPetVaccinations] = useState<VaccinationRecord[]>([]);
@@ -98,8 +97,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
   const [editingVaccination, setEditingVaccination] = useState<VaccinationRecord | null>(null);
   
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [useCamera, setUseCamera] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
 
   const vaccinationForm = useForm<VaccinationFormValues>({
     resolver: zodResolver(vaccinationFormSchema),
@@ -144,76 +142,38 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     return () => unsubscribeVaccinations();
   }, [user, params.petId, toast]);
 
-  // Effect for camera permissions and stream
-  useEffect(() => {
-    if (!useCamera) {
-      if(videoRef.current && videoRef.current.srcObject){
-         const stream = videoRef.current.srcObject as MediaStream;
-         stream.getTracks().forEach(track => track.stop());
-         videoRef.current.srcObject = null;
-      }
-      return;
-    }
-    const getCameraPermission = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setHasCameraPermission(true);
-        if (videoRef.current) { videoRef.current.srcObject = stream; }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setHasCameraPermission(false);
-        toast({ variant: 'destructive', title: 'Camera Access Denied', description: 'Please enable camera permissions in your browser settings.' });
-      }
-    };
-    getCameraPermission();
-  }, [useCamera, toast]);
-
-
   const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      setCurrentFile(file);
       const reader = new FileReader();
       reader.onloadend = () => { setImagePreview(reader.result as string); };
       reader.readAsDataURL(file);
-      vaccinationForm.setValue('documentFile', file);
     }
   };
 
-  const handleTakePicture = () => {
-    if (videoRef.current && canvasRef.current) {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      const context = canvas.getContext('2d');
-      if (context) {
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg');
-        setImagePreview(dataUrl);
-        vaccinationForm.setValue('documentFile', dataUrl);
-        setUseCamera(false); // Turn off camera after taking picture
-      }
-    }
-  };
-
-  const openAddDialog = () => {
-    setEditingVaccination(null);
-    vaccinationForm.reset({ veterinarian: "" });
+  const handleRemovePreview = () => {
     setImagePreview(null);
-    setUseCamera(false);
-    setIsVaccinationDialogOpen(true);
+    setCurrentFile(null);
+    // If we are editing, we might also want to mark the existing document for deletion on save.
+    // For simplicity, this just removes the preview. The save logic will handle deletion.
   };
 
-  const openEditDialog = (vaccination: VaccinationRecord) => {
+  const openDialog = (vaccination: VaccinationRecord | null) => {
     setEditingVaccination(vaccination);
-    vaccinationForm.reset({
-      vaccineName: vaccination.vaccineName,
-      dateAdministered: new Date(vaccination.dateAdministered),
-      nextDueDate: vaccination.nextDueDate ? new Date(vaccination.nextDueDate) : undefined,
-      veterinarian: vaccination.veterinarian,
-    });
-    setImagePreview(vaccination.documentUrl || null);
-    setUseCamera(false);
+    if (vaccination) {
+      vaccinationForm.reset({
+        vaccineName: vaccination.vaccineName,
+        dateAdministered: new Date(vaccination.dateAdministered),
+        nextDueDate: vaccination.nextDueDate ? new Date(vaccination.nextDueDate) : undefined,
+        veterinarian: vaccination.veterinarian,
+      });
+      setImagePreview(vaccination.documentUrl || null);
+    } else {
+      vaccinationForm.reset({ veterinarian: "", vaccineName: "", nextDueDate: undefined, dateAdministered: undefined });
+      setImagePreview(null);
+    }
+    setCurrentFile(null);
     setIsVaccinationDialogOpen(true);
   };
   
@@ -221,28 +181,46 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     if (!user || !pet) { toast({ title: "Error", description: "User or pet data missing.", variant: "destructive" }); return; }
     
     let documentUrl = editingVaccination?.documentUrl || "";
+    let storagePath = editingVaccination?.storagePath || "";
 
-    const fileToUpload = values.documentFile;
-    if (fileToUpload) {
-      const filePath = `users/${user.uid}/pets/${pet.id}/vaccinations/${uuidv4()}`;
-      const storageRef = ref(storage, filePath);
-      try {
-        if(editingVaccination?.documentUrl) {
-            const oldFileRef = ref(storage, editingVaccination.documentUrl);
-            await deleteObject(oldFileRef).catch(err => console.warn("Old file not found or could not be deleted:", err));
+    // If a new file is selected, upload it
+    if (currentFile) {
+        // If there was an old file, delete it first
+        if (editingVaccination?.storagePath) {
+            const oldFileRef = ref(storage, editingVaccination.storagePath);
+            try {
+                await deleteObject(oldFileRef);
+            } catch (err: any) {
+                if (err.code !== 'storage/object-not-found') {
+                    console.warn("Could not delete old file, it might not exist:", err);
+                }
+            }
         }
-        let uploadResult;
-        if (typeof fileToUpload === 'string') { // Data URL from camera
-          uploadResult = await uploadString(storageRef, fileToUpload, 'data_url');
-        } else { // File object from upload
-          uploadResult = await uploadString(storageRef, await fileToUpload.arrayBuffer(), 'base64', { contentType: fileToUpload.type });
+      
+        const newStoragePath = `users/${user.uid}/pets/${pet.id}/vaccinations/${uuidv4()}-${currentFile.name}`;
+        const storageRef = ref(storage, newStoragePath);
+        
+        try {
+            const uploadResult = await uploadBytes(storageRef, currentFile);
+            documentUrl = await getDownloadURL(uploadResult.ref);
+            storagePath = newStoragePath;
+        } catch(e) {
+            console.error("Error uploading file: ", e);
+            toast({ title: "Upload Error", description: "Could not upload the document.", variant: "destructive" });
+            return; // Stop execution if upload fails
         }
-        documentUrl = await getDownloadURL(uploadResult.ref);
-      } catch(e) {
-         console.error("Error uploading file: ", e);
-         toast({ title: "Upload Error", description: "Could not upload the document.", variant: "destructive" });
-         return; // Stop execution if upload fails
-      }
+    } else if (imagePreview === null && editingVaccination?.storagePath) {
+        // If the preview was removed (and no new file was added), delete the old file
+         const oldFileRef = ref(storage, editingVaccination.storagePath);
+         try {
+            await deleteObject(oldFileRef);
+            documentUrl = "";
+            storagePath = "";
+         } catch (err: any) {
+             if (err.code !== 'storage/object-not-found') {
+                console.warn("Could not delete file, it might not exist:", err);
+             }
+         }
     }
 
 
@@ -254,7 +232,8 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
       dateAdministered: format(values.dateAdministered, "yyyy-MM-dd"),
       nextDueDate: values.nextDueDate ? format(values.nextDueDate, "yyyy-MM-dd") : null,
       veterinarian: values.veterinarian,
-      documentUrl: documentUrl || "",
+      documentUrl: documentUrl,
+      storagePath: storagePath,
     };
 
     try {
@@ -270,11 +249,37 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
       setIsVaccinationDialogOpen(false);
       setEditingVaccination(null);
       setImagePreview(null);
+      setCurrentFile(null);
     } catch (e) {
       console.error("Error saving vaccination record: ", e);
       toast({ title: "Save Error", description: "Could not save vaccination record.", variant: "destructive" });
     }
   }
+
+  async function onDeleteVaccination(vaccinationId: string, storagePath?: string) {
+     if(!window.confirm("Are you sure you want to delete this vaccination record?")) return;
+
+     if(storagePath){
+         const fileRef = ref(storage, storagePath);
+         try {
+            await deleteObject(fileRef);
+         } catch(err: any){
+            if (err.code !== 'storage/object-not-found') {
+                console.error("Could not delete associated file, it may not exist or there's a permission issue.", err);
+                toast({ title: "File Deletion Warning", description: "Could not delete the stored document, but will proceed with deleting the record.", variant: "destructive" });
+            }
+         }
+     }
+     
+     try {
+        await deleteDoc(doc(db, "vaccinations", vaccinationId));
+        toast({ title: "Success", description: "Vaccination record deleted." });
+     } catch (e) {
+        console.error("Error deleting record:", e);
+        toast({ title: "Error", description: "Could not delete vaccination record.", variant: "destructive" });
+     }
+  }
+
 
   // Loading/Error states
   if (authLoading || isLoadingPet) { return <div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>; }
@@ -330,7 +335,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
               </div>
                <Dialog open={isVaccinationDialogOpen} onOpenChange={setIsVaccinationDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" onClick={openAddDialog}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
+                  <Button size="sm" variant="outline" onClick={() => openDialog(null)}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
@@ -338,7 +343,6 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                     <DialogDescription>Enter the details for {pet.name}&apos;s vaccination.</DialogDescription>
                   </DialogHeader>
                   <form onSubmit={vaccinationForm.handleSubmit(onSaveVaccination)} className="space-y-4 py-4">
-                    {/* Form fields... */}
                     <div>
                       <Label htmlFor="vaccineName">Vaccine Name</Label>
                       <Input id="vaccineName" {...vaccinationForm.register("vaccineName")} />
@@ -359,34 +363,16 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                         {vaccinationForm.formState.errors.veterinarian && <p className="text-xs text-destructive mt-1">{vaccinationForm.formState.errors.veterinarian.message}</p>}
                     </div>
 
-                    {/* File Upload & Camera */}
                     <div className="space-y-2">
                         <Label>Attach Document/Photo</Label>
-                        {useCamera ? (
-                            <div className="space-y-2">
-                                <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay muted playsInline></video>
-                                <canvas ref={canvasRef} className="hidden"></canvas>
-                                {hasCameraPermission === false && <Alert variant="destructive"><AlertTitle>Camera Access Denied</AlertTitle><AlertDescription>Please enable camera permissions in your browser settings.</AlertDescription></Alert>}
-                                <div className="flex gap-2">
-                                    <Button type="button" onClick={handleTakePicture} disabled={!hasCameraPermission}>Take Picture</Button>
-                                    <Button type="button" variant="outline" onClick={() => setUseCamera(false)}>Close Camera</Button>
-                                </div>
-                            </div>
-                        ) : (
-                             <div className="flex items-center gap-2">
-                                <Button type="button" variant="outline" size="sm" asChild>
-                                    <label htmlFor="doc-upload" className="cursor-pointer"><Upload className="mr-2 h-4 w-4" /> Upload File</label>
-                                </Button>
-                                <Input id="doc-upload" type="file" className="hidden" accept="image/*,.pdf" onChange={handleImageFileChange} />
-                                <Button type="button" variant="outline" size="sm" onClick={() => setUseCamera(true)}>
-                                    <Camera className="mr-2 h-4 w-4" /> Use Camera
-                                </Button>
-                            </div>
-                        )}
+                        <Button type="button" variant="outline" size="sm" asChild>
+                            <label htmlFor="doc-upload" className="cursor-pointer"><Upload className="mr-2 h-4 w-4" /> Upload File</label>
+                        </Button>
+                        <Input id="doc-upload" type="file" className="hidden" accept="image/*,.pdf" onChange={handleImageFileChange} />
                          {imagePreview && (
                             <div className="mt-2 relative w-32 h-32">
                                 <Image src={imagePreview} alt="Preview" layout="fill" objectFit="cover" className="rounded-md" />
-                                <Button type="button" size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => {setImagePreview(null); vaccinationForm.setValue('documentFile', null)}}>
+                                <Button type="button" size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={handleRemovePreview}>
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
                             </div>
@@ -417,7 +403,8 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                         <TableCell>{vax.veterinarian}</TableCell>
                         <TableCell className="text-right space-x-1">
                           {vax.documentUrl && <Link href={vax.documentUrl} target="_blank" rel="noopener noreferrer"><Button variant="ghost" size="icon" title="View Document"><LinkIcon className="h-4 w-4" /></Button></Link>}
-                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(vax)} title="Edit Record"><Edit3 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openDialog(vax)} title="Edit Record"><Edit3 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onDeleteVaccination(vax.id, vax.storagePath)} title="Delete Record"><Trash2 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -473,3 +460,5 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     </>
   );
 }
+
+    
