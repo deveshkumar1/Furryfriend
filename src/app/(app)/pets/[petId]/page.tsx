@@ -461,6 +461,3 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     </>
   );
 }
-
-
-    
