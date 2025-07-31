@@ -184,47 +184,47 @@ export default function PetProfilePage() {
   };
   
   async function onSaveVaccination(values: VaccinationFormValues) {
-    if (!user || !pet) { 
-        toast({ title: "Error", description: "User or pet data missing.", variant: "destructive" }); 
-        return; 
+    if (!user || !pet) {
+        toast({ title: "Error", description: "User or pet data missing.", variant: "destructive" });
+        return;
     }
-    
+
     let documentUrl = editingVaccination?.documentUrl || "";
     let storagePath = editingVaccination?.storagePath || "";
 
-    // Case 1: A new file is being uploaded.
-    if (currentFile) {
-        // If there was an old file, delete it first.
-        if (editingVaccination?.storagePath) {
-            const oldFileRef = ref(storage, editingVaccination.storagePath);
-            try { await deleteObject(oldFileRef); } catch (e) { console.warn("Old file deletion failed (it might not exist):", e); }
-        }
-      
-        // Upload the new file
-        const newStoragePath = `users/${user.uid}/pets/${pet.id}/vaccinations/${uuidv4()}-${currentFile.name}`;
-        const newFileRef = ref(storage, newStoragePath);
-        
-        try {
+    // Step 1: Handle file operations (upload, delete) first.
+    try {
+        // Case 1: A new file is being uploaded.
+        if (currentFile) {
+            // If there was an old file, delete it first.
+            if (editingVaccination?.storagePath) {
+                const oldFileRef = ref(storage, editingVaccination.storagePath);
+                await deleteObject(oldFileRef);
+            }
+            // Upload the new file
+            storagePath = `users/${user.uid}/pets/${pet.id}/vaccinations/${uuidv4()}-${currentFile.name}`;
+            const newFileRef = ref(storage, storagePath);
             const uploadResult = await uploadBytes(newFileRef, currentFile);
             documentUrl = await getDownloadURL(uploadResult.ref);
-            storagePath = newStoragePath;
-        } catch(e) {
-            console.error("Error uploading file: ", e);
-            toast({ title: "Upload Error", description: "Could not upload the document. Check storage rules.", variant: "destructive" });
-            return;
         }
-    // Case 2: The existing file/photo was removed (preview is null) and there was a file before.
-    } else if (imagePreview === null && editingVaccination?.storagePath) {
-         const oldFileRef = ref(storage, editingVaccination.storagePath);
-         try {
+        // Case 2: The existing file was removed and there's no new file.
+        else if (!imagePreview && editingVaccination?.storagePath) {
+            const oldFileRef = ref(storage, editingVaccination.storagePath);
             await deleteObject(oldFileRef);
             documentUrl = "";
             storagePath = "";
-         } catch (e) {
-            console.warn("Old file deletion failed (it might not exist):", e);
-         }
+        }
+    } catch (e: any) {
+        console.error("Firebase Storage Error: ", e);
+        toast({
+            title: "File Upload Error",
+            description: `Could not save the document. Please check your Firebase Storage rules and network. Error: ${e.code}`,
+            variant: "destructive"
+        });
+        return; // Stop the function if file operation fails
     }
     
+    // Step 2: Prepare data for Firestore.
     const recordData = {
       userId: user.uid,
       petId: pet.id,
@@ -237,6 +237,7 @@ export default function PetProfilePage() {
       storagePath: storagePath,
     };
 
+    // Step 3: Save the record to Firestore.
     try {
       if (editingVaccination) {
         const docRef = doc(db, "vaccinations", editingVaccination.id);
@@ -248,9 +249,9 @@ export default function PetProfilePage() {
       }
       setIsVaccinationDialogOpen(false);
       handleRemovePreview();
-    } catch (e) {
-      console.error("Error saving vaccination record: ", e);
-      toast({ title: "Save Error", description: "Could not save vaccination record to Firestore.", variant: "destructive" });
+    } catch (e: any) {
+      console.error("Firestore Error: ", e);
+      toast({ title: "Save Error", description: `Could not save vaccination record to Firestore. Error: ${e.code}`, variant: "destructive" });
     }
   }
 
@@ -336,7 +337,7 @@ export default function PetProfilePage() {
                   <Button size="sm" variant="outline" onClick={() => openDialog(null)} disabled={isLoadingPet || !pet}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
-                   {!pet ? <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div> : <>
+                   {isLoadingPet || !pet ? <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div> : <>
                   <DialogHeader>
                     <DialogTitle>{editingVaccination ? 'Edit' : 'Add'} Vaccination Record</DialogTitle>
                     <DialogDescription>Enter the details for {pet.name}&apos;s vaccination.</DialogDescription>
@@ -381,7 +382,7 @@ export default function PetProfilePage() {
                      <DialogFooter>
                       <Button type="button" variant="ghost" onClick={() => setIsVaccinationDialogOpen(false)}>Cancel</Button>
                       <Button type="submit" disabled={vaccinationForm.formState.isSubmitting}>
-                        {vaccinationForm.formState.isSubmitting ? "Saving..." : "Save Record"}
+                        {vaccinationForm.formState.isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Saving...</> : "Save Record"}
                       </Button>
                     </DialogFooter>
                   </form>

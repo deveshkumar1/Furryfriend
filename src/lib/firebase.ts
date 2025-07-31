@@ -6,6 +6,7 @@ import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 // Firebase configuration using environment variables
+// IMPORTANT: Ensure these variables are set in your .env.local file
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -13,34 +14,35 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  // measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID, // Optional
+  // measurementId is optional and not used in this app
 };
 
 // Initialize Firebase
 let app: FirebaseApp;
 
-if (!firebaseConfig.apiKey) {
+// Check if all required Firebase config keys are present.
+// This is a crucial check to prevent silent failures.
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
   console.error(
-    "Firebase API Key is missing. " +
-    "Please ensure your .env.local file is correctly set up with NEXT_PUBLIC_FIREBASE_API_KEY " +
+    "Firebase API Key or Project ID is missing. " +
+    "Please ensure your .env.local file is correctly set up with all NEXT_PUBLIC_FIREBASE_* variables " +
     "and that you have restarted your Next.js development server."
   );
-  // You could choose to throw an error here or let Firebase SDK handle it
-  // For now, we'll let Firebase SDK attempt initialization which will likely fail
-  // with a more specific Firebase error if config is truly missing.
+  // Throwing an error here can make debugging easier than letting the Firebase SDK fail.
 }
 
-// Check if Firebase has already been initialized
+// Initialize Firebase App
+// This pattern prevents re-initializing the app on every hot-reload in development
 if (!getApps().length) {
   app = initializeApp(firebaseConfig);
 } else {
   app = getApp(); // If already initialized, use that instance
 }
 
+// Get and export Firebase services
+// It's a good practice to initialize them once and export them for use throughout the app.
 const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
 export { app, db, auth, storage };
-
-    
