@@ -18,7 +18,7 @@ import { db, storage } from '@/lib/firebase';
 import { doc, onSnapshot, DocumentData, collection, addDoc, serverTimestamp, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -83,7 +83,9 @@ const healthDataActivity = [
 ];
 
 
-export default function PetProfilePage({ params }: { params: { petId: string } }) {
+export default function PetProfilePage() {
+  const params = useParams();
+  const petId = params.petId as string;
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -108,9 +110,9 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
   useEffect(() => {
     if (authLoading) return;
     if (!user) { setError("You must be logged in."); setIsLoadingPet(false); return; }
-    if (!params.petId) { setError("Pet ID is missing."); setIsLoadingPet(false); return; }
+    if (!petId) { setError("Pet ID is missing."); setIsLoadingPet(false); return; }
 
-    const petDocRef = doc(db, "pets", params.petId);
+    const petDocRef = doc(db, "pets", petId);
     const unsubscribePet = onSnapshot(petDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const petData = { id: docSnap.id, ...docSnap.data() } as PetData;
@@ -120,15 +122,15 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
       setIsLoadingPet(false);
     }, (err) => { console.error("Error fetching pet: ", err); setError("Failed to load pet."); setIsLoadingPet(false); });
     return () => unsubscribePet();
-  }, [params.petId, user, authLoading, router]);
+  }, [petId, user, authLoading, router]);
 
   // Effect for fetching vaccination data
   useEffect(() => {
-    if (!user || !params.petId) { setIsLoadingVaccinations(false); return; }
+    if (!user || !petId) { setIsLoadingVaccinations(false); return; }
     const q = query(
       collection(db, "vaccinations"),
       where("userId", "==", user.uid),
-      where("petId", "==", params.petId),
+      where("petId", "==", petId),
       orderBy("dateAdministered", "desc")
     );
     const unsubscribeVaccinations = onSnapshot(q, (querySnapshot) => {
@@ -141,7 +143,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
       setIsLoadingVaccinations(false);
     });
     return () => unsubscribeVaccinations();
-  }, [user, params.petId, toast]);
+  }, [user, petId, toast]);
 
   const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
