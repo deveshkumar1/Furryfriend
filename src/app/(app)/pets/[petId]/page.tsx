@@ -62,7 +62,6 @@ const vaccinationFormSchema = z.object({
   dateAdministered: z.date({ required_error: "Date administered is required" }),
   nextDueDate: z.date().optional(),
   veterinarian: z.string().min(1, "Veterinarian name is required"),
-  documentFile: z.any().optional(),
 });
 
 type VaccinationFormValues = z.infer<typeof vaccinationFormSchema>;
@@ -101,6 +100,7 @@ export default function PetProfilePage() {
   
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [currentFile, setCurrentFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const vaccinationForm = useForm<VaccinationFormValues>({
     resolver: zodResolver(vaccinationFormSchema),
@@ -122,7 +122,7 @@ export default function PetProfilePage() {
       setIsLoadingPet(false);
     }, (err) => { console.error("Error fetching pet: ", err); setError("Failed to load pet."); setIsLoadingPet(false); });
     return () => unsubscribePet();
-  }, [petId, user, authLoading, router]);
+  }, [petId, user, authLoading]);
 
   // Effect for fetching vaccination data
   useEffect(() => {
@@ -144,7 +144,7 @@ export default function PetProfilePage() {
       setIsLoadingVaccinations(false);
     });
     return () => unsubscribeVaccinations();
-  }, [user, petId, toast]);
+  }, [user, petId]);
 
   const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -160,6 +160,9 @@ export default function PetProfilePage() {
     }
     setImagePreview(null);
     setCurrentFile(null);
+    if(fileInputRef.current) {
+        fileInputRef.current.value = "";
+    }
   };
 
   const openDialog = (vaccination: VaccinationRecord | null) => {
@@ -173,7 +176,7 @@ export default function PetProfilePage() {
       });
       setImagePreview(vaccination.documentUrl || null);
     } else {
-      vaccinationForm.reset({ veterinarian: "", vaccineName: "", nextDueDate: undefined, dateAdministered: undefined });
+      vaccinationForm.reset({ veterinarian: "", vaccineName: "", nextDueDate: undefined, dateAdministered: new Date() });
       handleRemovePreview();
     }
     setCurrentFile(null);
@@ -181,49 +184,47 @@ export default function PetProfilePage() {
   };
   
   async function onSaveVaccination(values: VaccinationFormValues) {
-    if (!user || !pet) { toast({ title: "Error", description: "User or pet data missing.", variant: "destructive" }); return; }
+    if (!user || !pet) { 
+        toast({ title: "Error", description: "User or pet data missing.", variant: "destructive" }); 
+        return; 
+    }
     
     let documentUrl = editingVaccination?.documentUrl || "";
     let storagePath = editingVaccination?.storagePath || "";
 
+    // Case 1: A new file is being uploaded.
     if (currentFile) {
+        // If there was an old file, delete it first.
         if (editingVaccination?.storagePath) {
             const oldFileRef = ref(storage, editingVaccination.storagePath);
-            try {
-                await deleteObject(oldFileRef);
-            } catch (err: any) {
-                if (err.code !== 'storage/object-not-found') {
-                    console.warn("Could not delete old file, it might not exist:", err);
-                }
-            }
+            try { await deleteObject(oldFileRef); } catch (e) { console.warn("Old file deletion failed (it might not exist):", e); }
         }
       
+        // Upload the new file
         const newStoragePath = `users/${user.uid}/pets/${pet.id}/vaccinations/${uuidv4()}-${currentFile.name}`;
-        const storageRef = ref(storage, newStoragePath);
+        const newFileRef = ref(storage, newStoragePath);
         
         try {
-            const uploadResult = await uploadBytes(storageRef, currentFile);
+            const uploadResult = await uploadBytes(newFileRef, currentFile);
             documentUrl = await getDownloadURL(uploadResult.ref);
             storagePath = newStoragePath;
         } catch(e) {
             console.error("Error uploading file: ", e);
-            toast({ title: "Upload Error", description: "Could not upload the document.", variant: "destructive" });
+            toast({ title: "Upload Error", description: "Could not upload the document. Check storage rules.", variant: "destructive" });
             return;
         }
+    // Case 2: The existing file/photo was removed (preview is null) and there was a file before.
     } else if (imagePreview === null && editingVaccination?.storagePath) {
          const oldFileRef = ref(storage, editingVaccination.storagePath);
          try {
             await deleteObject(oldFileRef);
             documentUrl = "";
             storagePath = "";
-         } catch (err: any) {
-             if (err.code !== 'storage/object-not-found') {
-                console.warn("Could not delete file, it might not exist:", err);
-             }
+         } catch (e) {
+            console.warn("Old file deletion failed (it might not exist):", e);
          }
     }
-
-
+    
     const recordData = {
       userId: user.uid,
       petId: pet.id,
@@ -245,13 +246,11 @@ export default function PetProfilePage() {
         await addDoc(collection(db, "vaccinations"), { ...recordData, createdAt: serverTimestamp() });
         toast({ title: "Success", description: "Vaccination record added." });
       }
-      vaccinationForm.reset();
       setIsVaccinationDialogOpen(false);
-      setEditingVaccination(null);
       handleRemovePreview();
     } catch (e) {
       console.error("Error saving vaccination record: ", e);
-      toast({ title: "Save Error", description: "Could not save vaccination record.", variant: "destructive" });
+      toast({ title: "Save Error", description: "Could not save vaccination record to Firestore.", variant: "destructive" });
     }
   }
 
@@ -368,7 +367,7 @@ export default function PetProfilePage() {
                         <Button type="button" variant="outline" size="sm" asChild>
                             <label htmlFor="doc-upload" className="cursor-pointer"><Upload className="mr-2 h-4 w-4" /> Upload File</label>
                         </Button>
-                        <Input id="doc-upload" type="file" className="hidden" accept="image/*,.pdf" onChange={handleImageFileChange} />
+                        <Input id="doc-upload" type="file" className="hidden" accept="image/*,.pdf" onChange={handleImageFileChange} ref={fileInputRef}/>
                          {imagePreview && (
                             <div className="mt-2 relative w-32 h-32">
                                 <Image src={imagePreview} alt="Preview" layout="fill" objectFit="cover" className="rounded-md" />
