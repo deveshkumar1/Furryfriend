@@ -146,17 +146,16 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     const file = event.target.files?.[0];
     if (file) {
       setCurrentFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => { setImagePreview(reader.result as string); };
-      reader.readAsDataURL(file);
+      setImagePreview(URL.createObjectURL(file));
     }
   };
 
   const handleRemovePreview = () => {
+    if (imagePreview) {
+      URL.revokeObjectURL(imagePreview);
+    }
     setImagePreview(null);
     setCurrentFile(null);
-    // If we are editing, we might also want to mark the existing document for deletion on save.
-    // For simplicity, this just removes the preview. The save logic will handle deletion.
   };
 
   const openDialog = (vaccination: VaccinationRecord | null) => {
@@ -248,8 +247,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
       vaccinationForm.reset();
       setIsVaccinationDialogOpen(false);
       setEditingVaccination(null);
-      setImagePreview(null);
-      setCurrentFile(null);
+      handleRemovePreview();
     } catch (e) {
       console.error("Error saving vaccination record: ", e);
       toast({ title: "Save Error", description: "Could not save vaccination record.", variant: "destructive" });
@@ -335,7 +333,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
               </div>
                <Dialog open={isVaccinationDialogOpen} onOpenChange={setIsVaccinationDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" onClick={() => openDialog(null)}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
+                  <Button size="sm" variant="outline" onClick={() => openDialog(null)} disabled={isLoadingPet}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
@@ -403,7 +401,7 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
                         <TableCell>{vax.veterinarian}</TableCell>
                         <TableCell className="text-right space-x-1">
                           {vax.documentUrl && <Link href={vax.documentUrl} target="_blank" rel="noopener noreferrer"><Button variant="ghost" size="icon" title="View Document"><LinkIcon className="h-4 w-4" /></Button></Link>}
-                          <Button variant="ghost" size="icon" onClick={() => openDialog(vax)} title="Edit Record"><Edit3 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openDialog(vax)} title="Edit Record" disabled={isLoadingPet}><Edit3 className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onDeleteVaccination(vax.id, vax.storagePath)} title="Delete Record"><Trash2 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
@@ -460,5 +458,3 @@ export default function PetProfilePage({ params }: { params: { petId: string } }
     </>
   );
 }
-
-    
