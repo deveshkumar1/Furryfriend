@@ -138,7 +138,12 @@ export default function PetProfilePage() {
       setIsLoadingVaccinations(false);
     }, (err) => {
       console.error("Error fetching vaccinations: ", err);
-      toast({ title: "Error", description: "Could not load vaccination records.", variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: "Could not load vaccination records. This often requires a Firestore index. Check the browser console for a link to create it.",
+        variant: "destructive",
+        duration: 10000 
+      });
       setIsLoadingVaccinations(false);
     });
     return () => unsubscribeVaccinations();
@@ -148,6 +153,7 @@ export default function PetProfilePage() {
     const file = event.target.files?.[0];
     if (file) {
       setCurrentFile(file);
+      // Create a temporary URL for preview
       setImagePreview(URL.createObjectURL(file));
     }
   };
@@ -172,9 +178,9 @@ export default function PetProfilePage() {
       setImagePreview(vaccination.documentUrl || null);
     } else {
       vaccinationForm.reset({ veterinarian: "", vaccineName: "", nextDueDate: undefined, dateAdministered: undefined });
-      setImagePreview(null);
+      handleRemovePreview();
     }
-    setCurrentFile(null);
+    setCurrentFile(null); // Always reset the current file on open
     setIsVaccinationDialogOpen(true);
   };
   
@@ -335,7 +341,7 @@ export default function PetProfilePage() {
               </div>
                <Dialog open={isVaccinationDialogOpen} onOpenChange={setIsVaccinationDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" onClick={() => openDialog(null)} disabled={isLoadingPet}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
+                  <Button size="sm" variant="outline" onClick={() => openDialog(null)} disabled={isLoadingPet || !pet}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                    {!pet ? <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div> : <>
@@ -405,7 +411,7 @@ export default function PetProfilePage() {
                         <TableCell>{vax.veterinarian}</TableCell>
                         <TableCell className="text-right space-x-1">
                           {vax.documentUrl && <Link href={vax.documentUrl} target="_blank" rel="noopener noreferrer"><Button variant="ghost" size="icon" title="View Document"><LinkIcon className="h-4 w-4" /></Button></Link>}
-                          <Button variant="ghost" size="icon" onClick={() => openDialog(vax)} title="Edit Record" disabled={isLoadingPet}><Edit3 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openDialog(vax)} title="Edit Record" disabled={isLoadingPet || !pet}><Edit3 className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onDeleteVaccination(vax.id, vax.storagePath)} title="Delete Record"><Trash2 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
