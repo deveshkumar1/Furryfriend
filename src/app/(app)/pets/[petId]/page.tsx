@@ -399,14 +399,6 @@ export default function PetProfilePage() {
               </Dialog>
             </CardHeader>
             <CardContent>
-             <Alert className="mb-4">
-                <Info className="h-4 w-4" />
-                <AlertTitle>Firebase Storage Rules Required</AlertTitle>
-                <AlertDescription>
-                  For file uploads to work, you must enable Firebase Storage and set the correct security rules in the Firebase Console. If uploads hang or fail, please ensure your rules allow authenticated users to write to their own storage paths.
-                </AlertDescription>
-              </Alert>
-
               {isLoadingVaccinations ? ( <div className="flex justify-center items-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
               ) : vaccinationError ? (
                 <Alert variant="destructive">
