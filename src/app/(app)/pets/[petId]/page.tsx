@@ -219,10 +219,13 @@ export default function PetProfilePage() {
   const openVaccinationDialog = (vaccination: VaccinationRecord | null) => {
     setEditingVaccination(vaccination);
     if (vaccination) {
+      const administeredDate = vaccination.dateAdministered ? new Date(vaccination.dateAdministered) : new Date();
+      const dueDate = vaccination.nextDueDate ? new Date(vaccination.nextDueDate) : undefined;
+      
       vaccinationForm.reset({
         vaccineName: vaccination.vaccineName,
-        dateAdministered: new Date(vaccination.dateAdministered),
-        nextDueDate: vaccination.nextDueDate ? new Date(vaccination.nextDueDate) : undefined,
+        dateAdministered: isValid(administeredDate) ? administeredDate : new Date(),
+        nextDueDate: isValid(dueDate) ? dueDate : undefined,
         veterinarian: vaccination.veterinarian,
       });
       setImagePreview(vaccination.documentUrl || null);
@@ -334,11 +337,13 @@ export default function PetProfilePage() {
   const openMedicationDialog = (medication: MedicationRecord | null) => {
     setEditingMedication(medication);
     if (medication) {
+      const startDate = medication.startDate ? new Date(medication.startDate) : new Date();
+      const endDate = medication.endDate ? new Date(medication.endDate) : undefined;
       medicationForm.reset({
         medicationName: medication.medicationName,
         dosage: medication.dosage,
-        startDate: new Date(medication.startDate),
-        endDate: medication.endDate ? new Date(medication.endDate) : undefined,
+        startDate: isValid(startDate) ? startDate : new Date(),
+        endDate: isValid(endDate) ? endDate : undefined,
         veterinarian: medication.veterinarian,
         notes: medication.notes,
       });
@@ -454,7 +459,7 @@ export default function PetProfilePage() {
               </div>
                <Dialog open={isVaccinationDialogOpen} onOpenChange={setIsVaccinationDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" onClick={() => openVaccinationDialog(null)} disabled={isLoadingPet || !pet}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
+                  <Button size="sm" variant="outline" onClick={() => openVaccinationDialog(null)}><PlusCircle className="mr-2 h-4 w-4" /> Add Record</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                    {isLoadingPet || !pet ? <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div> : <>
@@ -470,12 +475,12 @@ export default function PetProfilePage() {
                     </div>
                     <Controller name="dateAdministered" control={vaccinationForm.control} render={({ field }) => (
                         <div className="space-y-1"><Label>Date Administered</Label>
-                        <Popover><PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIconLucide className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover>
+                        <Popover><PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIconLucide className="mr-2 h-4 w-4" />{field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover>
                         {vaccinationForm.formState.errors.dateAdministered && <p className="text-xs text-destructive mt-1">{vaccinationForm.formState.errors.dateAdministered.message}</p>}</div>
                     )}/>
                     <Controller name="nextDueDate" control={vaccinationForm.control} render={({ field }) => (
                         <div className="space-y-1"><Label>Next Due Date (Optional)</Label>
-                        <Popover><PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIconLucide className="mr-2 h-4 w-4" />{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent></Popover></div>
+                        <Popover><PopoverTrigger asChild><Button variant={"outline"} className="w-full justify-start text-left font-normal"><CalendarIconLucide className="mr-2 h-4 w-4" />{field.value && isValid(field.value) ? format(field.value, "PPP") : <span>Pick a date</span>}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={field.value} onSelect={field.onChange} /></PopoverContent></Popover></div>
                     )}/>
                     <div>
                         <Label htmlFor="veterinarian">Veterinarian</Label>
@@ -524,19 +529,22 @@ export default function PetProfilePage() {
                 <Table>
                   <TableHeader><TableRow><TableHead>Vaccine</TableHead><TableHead>Date Administered</TableHead><TableHead>Next Due</TableHead><TableHead>Veterinarian</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
                   <TableBody>
-                    {petVaccinations.map((vax) => (
+                    {petVaccinations.map((vax) => {
+                      const administeredDate = vax.dateAdministered ? new Date(vax.dateAdministered) : null;
+                      const nextDueDate = vax.nextDueDate ? new Date(vax.nextDueDate) : null;
+                      return (
                       <TableRow key={vax.id}>
                         <TableCell className="font-medium">{vax.vaccineName}</TableCell>
-                        <TableCell>{format(new Date(vax.dateAdministered), "MMM dd, yyyy")}</TableCell>
-                        <TableCell>{vax.nextDueDate ? (<Badge variant={new Date(vax.nextDueDate) < new Date() ? "destructive" : "default"}>{format(new Date(vax.nextDueDate), "MMM dd, yyyy")}</Badge>) : (<span className="text-muted-foreground">N/A</span>)}</TableCell>
+                        <TableCell>{administeredDate && isValid(administeredDate) ? format(administeredDate, "MMM dd, yyyy") : 'N/A'}</TableCell>
+                        <TableCell>{nextDueDate && isValid(nextDueDate) ? (<Badge variant={nextDueDate < new Date() ? "destructive" : "default"}>{format(nextDueDate, "MMM dd, yyyy")}</Badge>) : (<span className="text-muted-foreground">N/A</span>)}</TableCell>
                         <TableCell>{vax.veterinarian}</TableCell>
                         <TableCell className="text-right space-x-1">
                           {vax.documentUrl && <Link href={vax.documentUrl} target="_blank" rel="noopener noreferrer"><Button variant="ghost" size="icon" title="View Document"><LinkIcon className="h-4 w-4" /></Button></Link>}
-                          <Button variant="ghost" size="icon" onClick={() => openVaccinationDialog(vax)} title="Edit Record" disabled={isLoadingPet || !pet}><Edit3 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => openVaccinationDialog(vax)} title="Edit Record"><Edit3 className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onDeleteVaccination(vax.id, vax.storagePath)} title="Delete Record"><Trash2 className="h-4 w-4" /></Button>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )})}
                   </TableBody>
                 </Table>
               ) : (
@@ -552,7 +560,7 @@ export default function PetProfilePage() {
               <div><CardTitle>Medication Log</CardTitle><CardDescription>Manage {pet.name}&apos;s medications.</CardDescription></div>
                <Dialog open={isMedicationDialogOpen} onOpenChange={setIsMedicationDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" onClick={() => openMedicationDialog(null)} disabled={isLoadingPet || !pet}><PlusCircle className="mr-2 h-4 w-4" /> Add Medication</Button>
+                  <Button size="sm" variant="outline" onClick={() => openMedicationDialog(null)}><PlusCircle className="mr-2 h-4 w-4" /> Add Medication</Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-lg">
                    {isLoadingPet || !pet ? <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin" /></div> : <>
@@ -610,14 +618,19 @@ export default function PetProfilePage() {
                 <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error Loading Records</AlertTitle><AlertDescription>{medicationError}</AlertDescription></Alert>
               ) : petMedications.length > 0 ? (
                 <Table><TableHeader><TableRow><TableHead>Medication</TableHead><TableHead>Dosage</TableHead><TableHead>Date Range</TableHead><TableHead>Prescribed By</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
-                  <TableBody>{petMedications.map((med) => (<TableRow key={med.id}><TableCell className="font-medium">{med.medicationName}</TableCell><TableCell>{med.dosage}</TableCell>
-                    <TableCell>{format(new Date(med.startDate), "MMM dd, yyyy")} - {med.endDate ? format(new Date(med.endDate), "MMM dd, yyyy") : 'Ongoing'}</TableCell>
+                  <TableBody>{petMedications.map((med) => {
+                    const startDate = med.startDate ? new Date(med.startDate) : null;
+                    const endDate = med.endDate ? new Date(med.endDate) : null;
+                    return (<TableRow key={med.id}>
+                    <TableCell className="font-medium">{med.medicationName}</TableCell><TableCell>{med.dosage}</TableCell>
+                    <TableCell>{startDate && isValid(startDate) ? format(startDate, "MMM dd, yyyy") : 'N/A'} - {endDate && isValid(endDate) ? format(endDate, "MMM dd, yyyy") : 'Ongoing'}</TableCell>
                     <TableCell>{med.veterinarian}</TableCell>
                     <TableCell className="text-right space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => openMedicationDialog(med)} title="Edit Record"><Edit3 className="h-4 w-4" /></Button>
                         <Button variant="ghost" size="icon" className="text-destructive" onClick={() => onDeleteMedication(med.id)} title="Delete Record"><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
-                  </TableRow>))}</TableBody>
+                  </TableRow>
+                  )})}</TableBody>
                 </Table>
               ) : (<p className="text-muted-foreground text-center py-4">No medication records found.</p>)}
             </CardContent>
@@ -675,3 +688,5 @@ export default function PetProfilePage() {
     </>
   );
 }
+
+    
