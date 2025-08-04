@@ -1,14 +1,14 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { PawPrint, Edit3, Trash2, Loader2, AlertTriangle, User } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { PawPrint, Edit3, Trash2, Loader2, AlertTriangle, User, Search, XCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy, DocumentData, getDocs, where } from 'firebase/firestore';
 import Image from 'next/image';
@@ -46,6 +46,7 @@ export default function ManagePetsPage() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     setIsLoading(true);
@@ -64,7 +65,14 @@ export default function ManagePetsPage() {
       }
       
       const petRecords = petsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pet));
-      const userIds = [...new Set(petRecords.map(pet => pet.userId))];
+      // Guard against empty userIds array for "in" query
+      const userIds = [...new Set(petRecords.map(pet => pet.userId))].filter(Boolean);
+
+      if (userIds.length === 0) {
+        setPets(petRecords.map(p => ({ ...p, ownerName: 'Unknown User', ownerEmail: 'N/A' })));
+        setIsLoading(false);
+        return;
+      }
 
       // Fetch user data for all unique user IDs
       try {
@@ -90,9 +98,8 @@ export default function ManagePetsPage() {
         setPets(enrichedPets);
       } catch (err: any) {
          console.error("Error fetching user details for pets: ", err);
-         // Fallback: Show pets with only user IDs if user fetching fails
-         setPets(petRecords);
-         setError("Failed to load full owner details for pets. Displaying basic info.");
+         setPets(petRecords.map(p => ({ ...p, ownerName: 'Unknown User', ownerEmail: 'N/A' })));
+         setError("Failed to load full owner details for some pets. Displaying basic info.");
       } finally {
          setIsLoading(false);
       }
@@ -106,6 +113,15 @@ export default function ManagePetsPage() {
     return () => unsubscribe();
   }, []);
   
+  const filteredPets = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    if (!term) return pets;
+    return pets.filter(pet => 
+      pet.name.toLowerCase().includes(term) ||
+      pet.ownerName?.toLowerCase().includes(term)
+    );
+  }, [pets, searchTerm]);
+
   return (
     <>
       <PageHeader
@@ -115,10 +131,29 @@ export default function ManagePetsPage() {
       />
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>All Pets ({pets.length})</CardTitle>
+          <CardTitle>All Pets ({filteredPets.length})</CardTitle>
           <CardDescription>
             A complete list of all pets created by users.
           </CardDescription>
+           <div className="relative mt-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input 
+              placeholder="Search by pet name or owner name..." 
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                    onClick={() => setSearchTerm('')}
+                >
+                    <XCircle className="h-5 w-5 text-muted-foreground" />
+                </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
            {isLoading ? (
@@ -132,7 +167,7 @@ export default function ManagePetsPage() {
                 <p className="font-semibold">Error Loading Pets</p>
                 <p className="text-sm">{error}</p>
              </div>
-           ) : pets.length > 0 ? (
+           ) : filteredPets.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -143,7 +178,7 @@ export default function ManagePetsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pets.map((pet) => (
+                {filteredPets.map((pet) => (
                   <TableRow key={pet.id}>
                     <TableCell className="font-medium">
                        <Link href={`/pets/${pet.id}`} className="flex items-center gap-3 group">
@@ -162,7 +197,13 @@ export default function ManagePetsPage() {
                                 <AvatarFallback>{getInitials(pet.ownerName)}</AvatarFallback>
                            </Avatar>
                            <div>
-                                <div className="font-medium text-sm">{pet.ownerName}</div>
+                                <Button 
+                                    variant="link" 
+                                    className="p-0 h-auto font-medium text-sm text-primary"
+                                    onClick={() => setSearchTerm(pet.ownerName || '')}
+                                >
+                                  {pet.ownerName}
+                                </Button>
                                 <div className="text-xs text-muted-foreground">{pet.ownerEmail}</div>
                            </div>
                         </div>
@@ -182,7 +223,12 @@ export default function ManagePetsPage() {
           ) : (
              <div className="text-center py-12">
                 <PawPrint className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No pets found on the platform.</p>
+                <p className="text-muted-foreground font-semibold">No Pets Found</p>
+                {searchTerm ? (
+                    <p className="text-sm text-muted-foreground">No pets match your search for "{searchTerm}".</p>
+                ) : (
+                    <p className="text-sm text-muted-foreground">There are no pets on the platform yet.</p>
+                )}
              </div>
           )}
         </CardContent>
