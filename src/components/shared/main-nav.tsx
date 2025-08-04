@@ -18,6 +18,7 @@ import {
   Circle,
   Loader2,
   LogOut,
+  Shield,
 } from 'lucide-react';
 import {
   SidebarMenu,
@@ -27,6 +28,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
   SidebarFooter,
+  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -82,12 +84,16 @@ const getBaseNavItems = (): NavItem[] => [
   { title: 'Settings', href: '/settings', icon: Settings },
 ];
 
+const getAdminNavItems = (): NavItem[] => [
+    { title: 'Admin Dashboard', href: '/admin/dashboard', icon: Shield }
+]
+
 
 export function MainNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth(); // Now includes userProfile for role checking
   const [pets, setPets] = useState<Pet[]>([]);
   const [isLoadingPets, setIsLoadingPets] = useState(true);
   
@@ -146,9 +152,6 @@ export function MainNav() {
         
         let petChildren: NavItem[] = [];
         
-        // The main link to the grid of all pets
-        petChildren.push({ title: "All Pets", href: "/pets", icon: PawPrint });
-
         if (isLoadingPets) {
             petChildren.push({ title: "Loading pets...", href: "#", icon: Loader2, disabled: true });
         } else if (pets.length > 0) {
@@ -158,16 +161,14 @@ export function MainNav() {
         myPetsItem.children = petChildren;
     }
     
-    // Filter out items you want to remove completely from the sidebar
-    return newNavItems.filter(item => 
-        item.href !== '/pets/vaccinations' && 
-        item.href !== '/pets/medications'
-    );
+    return newNavItems;
   }, [pets, isLoadingPets]);
+  
+  const adminNavItems = useMemo(() => getAdminNavItems(), []);
 
   const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
-    const isParentOfActive = item.children && item.children.some(child => pathname.startsWith(child.href) && child.href !== '/pets');
-    const isActive = (item.href === pathname || (item.href !== '/dashboard' && item.href !== '/pets' && pathname.startsWith(item.href))) || isParentOfActive;
+    const isParentOfActive = item.children && item.children.some(child => pathname.startsWith(child.href));
+    const isActive = (item.href === pathname || (item.href !== '/dashboard' && pathname.startsWith(item.href))) || isParentOfActive;
     
     const isDisabled = item.disabled;
     const tooltipContent = item.title;
@@ -179,7 +180,7 @@ export function MainNav() {
 
     if (item.children && item.children.length > 0) {
       return (
-        <Accordion type="single" collapsible className="w-full" key={item.title} defaultValue={isParentOfActive || item.href === '/pets' && pathname.startsWith('/pets') ? item.title : undefined}>
+        <Accordion type="single" collapsible className="w-full" key={item.title} defaultValue={isParentOfActive ? item.title : undefined}>
           <AccordionItem value={item.title} className="border-none">
              <AccordionTrigger
                 className={cn(
@@ -269,8 +270,24 @@ export function MainNav() {
             </SidebarMenuItem>
           ))}
         </SidebarMenu>
+        
+        {userProfile?.isAdmin && (
+            <>
+                <SidebarSeparator className="my-2" />
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                       <span className="px-2 text-xs font-semibold text-muted-foreground/80 group-data-[collapsible=icon]:hidden">Admin</span>
+                    </SidebarMenuItem>
+                    {adminNavItems.map((item) => (
+                        <SidebarMenuItem key={item.title}>
+                            {renderNavItem(item)}
+                        </SidebarMenuItem>
+                    ))}
+                </SidebarMenu>
+            </>
+        )}
       </nav>
-       <SidebarFooter className="mt-auto border-t border-sidebar-border">
+       <SidebarFooter className="mt-auto border-t border-sidebar-border p-2">
           <Button variant="ghost" className="w-full justify-start text-red-500 hover:bg-red-500/10 hover:text-red-500" onClick={handleLogout}>
               <LogOut className="mr-2 h-5 w-5" />
               <span className="truncate">Sign Out</span>

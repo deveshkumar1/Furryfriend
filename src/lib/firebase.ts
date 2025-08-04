@@ -45,4 +45,45 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 
+/* 
+* Firestore Security Rules for this project:
+*
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Function to check if a user has the 'admin' role
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // Users can manage their own user document
+    match /users/{userId} {
+      allow read, update: if request.auth.uid == userId || isAdmin();
+      allow create: if request.auth != null;
+      // Admins can list all users
+      allow list: if isAdmin();
+    }
+
+    // Users can manage their own data, Admins can read anyone's data
+    match /pets/{petId} {
+      allow read, write, delete: if (request.auth.uid == resource.data.userId) || (request.auth.uid == request.resource.data.userId) || isAdmin();
+    }
+
+    match /vaccinations/{vaccinationId} {
+      allow read, write, delete: if (request.auth.uid == resource.data.userId) || (request.auth.uid == request.resource.data.userId) || isAdmin();
+    }
+    
+    match /medications/{medicationId} {
+        allow read, write, delete: if (request.auth.uid == resource.data.userId) || (request.auth.uid == request.resource.data.userId) || isAdmin();
+    }
+    
+    // Users can manage their own saved vets
+    match /users/{userId}/savedVets/{vetId} {
+       allow read, write, delete: if request.auth.uid == userId || isAdmin();
+    }
+  }
+}
+*/
+
 export { app, db, auth, storage };

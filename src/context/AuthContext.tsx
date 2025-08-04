@@ -12,6 +12,7 @@ interface UserProfile extends DocumentData {
   uid: string;
   email: string;
   name?: string;
+  isAdmin?: boolean;
   // Add other profile fields as needed
 }
 
@@ -48,7 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // Or if user was created directly in Firebase console without a corresponding doc
             console.warn(`No user profile document found for UID: ${firebaseUser.uid}`);
              // Create a basic profile if missing - or handle as an error
-            setUserProfile({ uid: firebaseUser.uid, email: firebaseUser.email || "N/A" });
+            setUserProfile({ uid: firebaseUser.uid, email: firebaseUser.email || "N/A", isAdmin: false });
           }
         } catch (e: any) {
           console.error("Error fetching user profile:", e);
