@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import Image from 'next/image';
@@ -11,7 +12,8 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ResponsiveContainer, BarChart, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip, Bar, LineChart as RechartsLineChart, Line } from 'recharts';
-import { ChartTooltipContent } from '@/components/ui/chart';
+import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 import { useEffect, useState, useRef } from 'react';
 import { db, storage } from '@/lib/firebase';
 import { doc, onSnapshot, DocumentData, collection, addDoc, serverTimestamp, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -79,6 +81,14 @@ const healthDataActivity = [
   { date: 'Jan 2024', level: 5 }, { date: 'Feb 2024', level: 6 }, { date: 'Mar 2024', level: 5.5 },
   { date: 'Apr 2024', level: 7 }, { date: 'May 2024', level: 6 }, { date: 'Jun 2024', level: 6.5 },
 ];
+
+const weightChartConfig = {
+  weight: { label: 'Weight', color: 'hsl(var(--primary))' },
+} satisfies ChartConfig;
+
+const activityChartConfig = {
+  level: { label: 'Activity Level', color: 'hsl(var(--accent))' },
+} satisfies ChartConfig;
 
 
 export default function PetProfilePage() {
@@ -454,10 +464,34 @@ export default function PetProfilePage() {
            <CardDescription className="mb-4 text-center">Health chart data is mock data and not connected to this pet.</CardDescription>
           <div className="grid md:grid-cols-2 gap-6">
             <Card className="shadow-lg"><CardHeader><CardTitle>Weight Tracking</CardTitle><CardDescription>Monthly weight changes.</CardDescription></CardHeader>
-              <CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><RechartsLineChart data={healthDataWeight} margin={{ top: 5, right: 20, left: -25, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="date" stroke="hsl(var(--foreground))" /><YAxis stroke="hsl(var(--foreground))" /><RechartsTooltip content={<ChartTooltipContent nameKey="date" labelKey="weight" />} cursor={false}/><Line type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4, fill: "hsl(var(--primary))" }} activeDot={{ r: 6 }} /></RechartsLineChart></ResponsiveContainer></CardContent>
+              <CardContent className="h-[300px]">
+                <ChartContainer config={weightChartConfig}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsLineChart data={healthDataWeight} margin={{ top: 5, right: 20, left: -25, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" stroke="hsl(var(--foreground))" />
+                      <YAxis stroke="hsl(var(--foreground))" />
+                      <RechartsTooltip content={<ChartTooltipContent />} cursor={false}/>
+                      <Line type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4, fill: "hsl(var(--primary))" }} activeDot={{ r: 6 }} />
+                    </RechartsLineChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              </CardContent>
             </Card>
             <Card className="shadow-lg"><CardHeader><CardTitle>Activity Level</CardTitle><CardDescription>Estimated daily activity (Scale 1-10).</CardDescription></CardHeader>
-              <CardContent className="h-[300px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={healthDataActivity} margin={{ top: 5, right: 20, left: -25, bottom: 5 }}><CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" /><XAxis dataKey="date" stroke="hsl(var(--foreground))" /><YAxis stroke="hsl(var(--foreground))" domain={[0,10]}/><RechartsTooltip content={<ChartTooltipContent nameKey="date" labelKey="level" />} cursor={false}/><Bar dataKey="level" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></CardContent>
+              <CardContent className="h-[300px]">
+                <ChartContainer config={activityChartConfig}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={healthDataActivity} margin={{ top: 5, right: 20, left: -25, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis dataKey="date" stroke="hsl(var(--foreground))" />
+                      <YAxis stroke="hsl(var(--foreground))" domain={[0,10]}/>
+                      <RechartsTooltip content={<ChartTooltipContent />} cursor={false}/>
+                      <Bar dataKey="level" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              </CardContent>
             </Card>
           </div>
         </TabsContent>
