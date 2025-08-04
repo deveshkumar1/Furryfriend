@@ -93,7 +93,7 @@ export default function ManageUsersPage() {
     return users.filter(user =>
       user.name.toLowerCase().includes(term) ||
       user.email.toLowerCase().includes(term) ||
-      (user.phone && user.phone.toLowerCase().includes(term))
+      (user.phone && user.phone.includes(term))
     );
   }, [users, searchTerm]);
   
@@ -178,9 +178,11 @@ export default function ManageUsersPage() {
                       {user.createdAt?.toDate ? format(user.createdAt.toDate(), "MMM dd, yyyy") : 'N/A'}
                     </TableCell>
                     <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" title="Edit User (WIP)" disabled>
-                            <Edit3 className="h-4 w-4" />
-                        </Button>
+                       <Link href={`/profile?userId=${user.uid}`} passHref>
+                          <Button variant="ghost" size="icon" title="Edit User">
+                              <Edit3 className="h-4 w-4" />
+                          </Button>
+                        </Link>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" title="Delete User" className="text-destructive" disabled={user.uid === adminUser?.uid}>

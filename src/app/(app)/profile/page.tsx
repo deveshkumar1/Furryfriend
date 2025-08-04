@@ -1,6 +1,7 @@
 
 "use client"; // Needs to be a client component to use hooks
 
+import { Suspense } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +15,7 @@ import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import * as z from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -41,16 +42,17 @@ const profileFormSchema = z.object({
   phone: z.string().regex(phoneRegex, 'Invalid phone number format.').optional().or(z.literal('')),
   address: z.string().optional(),
   bio: z.string().max(500, "Bio can be at most 500 characters.").optional(),
-  // avatarUrl could be handled separately if file upload is implemented
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const { user, userProfile: authUserProfile, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+  
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -58,54 +60,69 @@ export default function ProfilePage() {
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
-    defaultValues: {
-      name: '',
-      phone: '',
-      address: '',
-      bio: '',
-    },
+    defaultValues: { name: '', phone: '', address: '', bio: '' },
   });
 
+  // Determine whose profile to load: the logged-in user's, or one specified in the URL by an admin.
+  const profileUserId = searchParams.get('userId') || user?.uid;
 
   useEffect(() => {
-    if (authLoading) {
+    if (authLoading || !profileUserId) {
       setIsLoading(true);
       return;
     }
-    if (!user) {
-      router.push('/'); // Redirect if not logged in
+
+    // Security check: Only admins can view/edit other users' profiles.
+    if (profileUserId !== user?.uid && !authUserProfile?.isAdmin) {
+      toast({ variant: 'destructive', title: 'Access Denied', description: "You don't have permission to view this profile." });
+      router.push('/dashboard');
       return;
     }
-    if (authUserProfile) {
-        setProfileData(authUserProfile as UserProfileData);
-        form.reset({
-            name: authUserProfile.name || '',
-            phone: authUserProfile.phone || '',
-            address: authUserProfile.address || '',
-            bio: authUserProfile.bio || '',
-        });
-    }
-    setIsLoading(false);
-  }, [user, authUserProfile, authLoading, router, form]);
+    
+    setIsLoading(true);
+    const userDocRef = doc(db, "users", profileUserId);
+    getDoc(userDocRef).then(docSnap => {
+        if (docSnap.exists()) {
+            const data = { uid: docSnap.id, ...docSnap.data() } as UserProfileData;
+            setProfileData(data);
+            form.reset({
+                name: data.name || '',
+                phone: data.phone || '',
+                address: data.address || '',
+                bio: data.bio || '',
+            });
+        } else {
+             toast({ variant: 'destructive', title: 'Not Found', description: 'User profile could not be found.' });
+             router.push(authUserProfile?.isAdmin ? '/admin/users' : '/dashboard');
+        }
+    }).catch(error => {
+        console.error("Error fetching profile:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to load profile data.' });
+    }).finally(() => {
+        setIsLoading(false);
+    });
+
+  }, [profileUserId, user?.uid, authUserProfile?.isAdmin, authLoading, router, toast, form]);
 
   async function onSubmit(values: ProfileFormValues) {
-    if (!user) {
-        toast({ title: "Error", description: "You are not logged in.", variant: "destructive"});
+    if (!profileUserId) {
+        toast({ title: "Error", description: "No user ID specified.", variant: "destructive"});
         return;
     }
     setIsSubmitting(true);
     try {
-        const userDocRef = doc(db, "users", user.uid);
+        const userDocRef = doc(db, "users", profileUserId);
         await updateDoc(userDocRef, {
             name: values.name,
             phone: values.phone || "",
             address: values.address || "",
             bio: values.bio || "",
-            // avatarUrl would be updated here if implementing file upload
         });
-        toast({ title: "Profile Updated", description: "Your profile has been successfully updated." });
+        toast({ title: "Profile Updated", description: "The profile has been successfully updated." });
         setIsEditing(false);
-        // Optionally re-fetch profile or rely on AuthContext to update if it re-fetches on change
+        // Manually update state to reflect changes instantly
+        setProfileData(prev => prev ? { ...prev, ...values } : null);
+
     } catch (error) {
         console.error("Error updating profile:", error);
         toast({ title: "Update Failed", description: "Could not update profile. Please try again.", variant: "destructive"});
@@ -129,7 +146,7 @@ export default function ProfilePage() {
        <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
         <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Profile Not Found</h2>
-        <p className="text-muted-foreground mb-4">Could not load your profile data.</p>
+        <p className="text-muted-foreground mb-4">Could not load the requested profile data.</p>
       </div>
     );
   }
@@ -145,8 +162,8 @@ export default function ProfilePage() {
   return (
     <>
       <PageHeader
-        title="My Profile"
-        description="View and update your personal information."
+        title={profileUserId === user?.uid ? "My Profile" : `${profileData.name}'s Profile`}
+        description="View and update personal information."
         icon={UserCircle}
         action={
           !isEditing ? (
@@ -245,4 +262,12 @@ export default function ProfilePage() {
       </Card>
     </>
   );
+}
+
+export default function ProfilePage() {
+    return (
+        <Suspense fallback={<div className="flex justify-center items-center h-64"><Loader2 className="h-12 w-12 animate-spin text-primary" /></div>}>
+            <ProfilePageContent />
+        </Suspense>
+    )
 }
