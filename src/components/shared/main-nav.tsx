@@ -19,6 +19,7 @@ import {
   Loader2,
   LogOut,
   Shield,
+  Users,
 } from 'lucide-react';
 import {
   SidebarMenu,
@@ -85,7 +86,16 @@ const getBaseNavItems = (): NavItem[] => [
 ];
 
 const getAdminNavItems = (): NavItem[] => [
-    { title: 'Admin Dashboard', href: '/admin/dashboard', icon: Shield }
+    { 
+        title: 'Admin', 
+        href: '/admin/dashboard', 
+        icon: Shield,
+        children: [
+            { title: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
+            { title: 'Manage Users', href: '/admin/users', icon: Users },
+            { title: 'Manage Pets', href: '/admin/pets', icon: PawPrint },
+        ]
+    }
 ]
 
 
@@ -180,8 +190,8 @@ export function MainNav() {
 
     if (item.children && item.children.length > 0) {
       return (
-        <Accordion type="single" collapsible className="w-full" key={item.title} defaultValue={isParentOfActive ? item.title : undefined}>
-          <AccordionItem value={item.title} className="border-none">
+        <Accordion type="single" collapsible className="w-full" key={item.title} defaultValue={isParentOfActive ? `accordion-${item.title}` : undefined}>
+          <AccordionItem value={`accordion-${item.title}`} className="border-none">
              <AccordionTrigger
                 className={cn(
                   "flex items-center w-full justify-start gap-2 rounded-md p-2 text-left text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground flex-grow",
@@ -276,7 +286,7 @@ export function MainNav() {
                 <SidebarSeparator className="my-2" />
                 <SidebarMenu>
                     <SidebarMenuItem>
-                       <span className="px-2 text-xs font-semibold text-muted-foreground/80 group-data-[collapsible=icon]:hidden">Admin</span>
+                       <span className="px-2 text-xs font-semibold text-muted-foreground/80 group-data-[collapsible=icon]:hidden">Admin Area</span>
                     </SidebarMenuItem>
                     {adminNavItems.map((item) => (
                         <SidebarMenuItem key={item.title}>

@@ -1,7 +1,9 @@
 
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Users, PawPrint } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Shield, Users, PawPrint, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
 export default function AdminDashboardPage() {
   // In the future, we'll fetch real data here.
@@ -58,11 +60,34 @@ export default function AdminDashboardPage() {
         <CardHeader>
           <CardTitle>Platform Management</CardTitle>
           <CardDescription>
-            This is where you will manage all platform data. Links to manage users, pets, and view system logs will be added here.
+            Manage all platform data including users, pets, and system logs.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-            <p className="text-muted-foreground">Admin tables and data management tools coming soon!</p>
+        <CardContent className="grid md:grid-cols-2 gap-4">
+            <Link href="/admin/users">
+              <Card className="p-4 hover:bg-secondary/50 transition-colors">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <Users className="h-6 w-6 text-primary"/>
+                      <h3 className="text-lg font-semibold">Manage Users</h3>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground"/>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">View, edit, and manage all user accounts.</p>
+              </Card>
+            </Link>
+            <Link href="/admin/pets">
+                <Card className="p-4 hover:bg-secondary/50 transition-colors">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <PawPrint className="h-6 w-6 text-accent"/>
+                      <h3 className="text-lg font-semibold">Manage Pets</h3>
+                    </div>
+                    <ArrowRight className="h-5 w-5 text-muted-foreground"/>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2">Browse and manage all pet profiles on the platform.</p>
+              </Card>
+            </Link>
         </CardContent>
       </Card>
     </>
