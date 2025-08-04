@@ -46,9 +46,10 @@ export function UserNav() {
 
   if (loading) {
     return (
-      <Button variant="ghost" className="relative h-10 w-10 rounded-full" disabled>
+      <div className="flex items-center gap-2">
         <Loader2 className="h-5 w-5 animate-spin" />
-      </Button>
+        <span className="text-sm text-muted-foreground hidden md:inline">Loading...</span>
+      </div>
     );
   }
 
@@ -69,63 +70,70 @@ export function UserNav() {
 
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-          <Avatar className="h-10 w-10 border-2 border-primary/50">
-            {/* Assuming userProfile might have an avatarUrl, otherwise fallback */}
-            <AvatarImage src={userProfile?.avatarUrl || ''} alt={userProfile?.name || user.email || "User"} data-ai-hint="user avatar" />
-            <AvatarFallback>{getInitials(userProfile?.name)}</AvatarFallback>
-          </Avatar>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-56" align="end" forceMount>
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{userProfile?.name || "User"}</p>
+    <div className="flex items-center gap-4">
+       <div className="text-right hidden md:block">
+          <p className="text-sm font-medium leading-none">{userProfile?.name || "User"}</p>
             <p className="text-xs leading-none text-muted-foreground">
               {user.email}
             </p>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem asChild>
-            <Link href="/profile">
-              <User className="mr-2 h-4 w-4" />
-              <span>Profile</span>
-              <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/pets">
-               <PawPrint className="mr-2 h-4 w-4" />
-              <span>My Pets</span>
-               <DropdownMenuShortcut>⌘P</DropdownMenuShortcut>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/subscriptions">
-              <CreditCard className="mr-2 h-4 w-4" />
-              <span>Billing</span>
-              <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/settings">
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-              <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
-          <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
-          <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+       </div>
+        <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+            <Avatar className="h-10 w-10 border-2 border-primary/50">
+                <AvatarImage src={userProfile?.avatarUrl || ''} alt={userProfile?.name || user.email || "User"} data-ai-hint="user avatar" />
+                <AvatarFallback>{getInitials(userProfile?.name)}</AvatarFallback>
+            </Avatar>
+            </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-56" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal md:hidden">
+            <div className="flex flex-col space-y-1">
+                <p className="text-sm font-medium leading-none">{userProfile?.name || "User"}</p>
+                <p className="text-xs leading-none text-muted-foreground">
+                {user.email}
+                </p>
+            </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="md:hidden" />
+            <DropdownMenuGroup>
+            <DropdownMenuItem asChild>
+                <Link href="/profile">
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+                <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+                </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+                <Link href="/pets">
+                <PawPrint className="mr-2 h-4 w-4" />
+                <span>My Pets</span>
+                <DropdownMenuShortcut>⌘P</DropdownMenuShortcut>
+                </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+                <Link href="/subscriptions">
+                <CreditCard className="mr-2 h-4 w-4" />
+                <span>Billing</span>
+                <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
+                </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+                <Link href="/settings">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+                <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
+                </Link>
+            </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Log out</span>
+            <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+            </DropdownMenuItem>
+        </DropdownMenuContent>
+        </DropdownMenu>
+    </div>
   );
 }
