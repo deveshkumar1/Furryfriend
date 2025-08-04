@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -81,8 +82,16 @@ export default function EditPetPage() {
   });
 
   useEffect(() => {
-    if (!petId || !user) return;
+    if (!petId || authLoading) return;
     setIsLoadingPet(true);
+
+    // This check needs to happen after authLoading is false
+    if (!user) {
+        toast({ variant: 'destructive', title: 'Access Denied', description: "You must be logged in to edit this pet." });
+        router.push('/pets');
+        return;
+    }
+
     const petDocRef = doc(db, 'pets', petId);
     getDoc(petDocRef).then(docSnap => {
         if (docSnap.exists()) {
@@ -117,7 +126,7 @@ export default function EditPetPage() {
     }).finally(() => {
         setIsLoadingPet(false);
     });
-  }, [petId, user, userProfile, form, router, toast]);
+  }, [petId, user, userProfile, authLoading, form, router, toast]);
 
   async function onSubmit(values: PetFormValues) {
     if (!user || !petData) {
@@ -132,20 +141,25 @@ export default function EditPetPage() {
 
     try {
         if (newImageFile) {
-            // If there's an old image, delete it from storage
-            if (storagePath) {
-                const oldFileRef = ref(storage, storagePath);
-                await deleteObject(oldFileRef).catch(err => console.warn("Old file not found, skipping deletion:", err));
-            }
-            // Upload the new image
-            storagePath = `users/${petData.userId}/pets/${petId}/profile-${uuidv4()}`;
-            const newFileRef = ref(storage, storagePath);
+            // Upload the new image first
+            const newStoragePath = `users/${petData.userId}/pets/${petId}/profile-${uuidv4()}`;
+            const newFileRef = ref(storage, newStoragePath);
             await uploadBytes(newFileRef, newImageFile);
             imageUrl = await getDownloadURL(newFileRef);
+            storagePath = newStoragePath;
+            
+            // If upload is successful, delete the old image if it exists
+            if (petData.storagePath) {
+                const oldFileRef = ref(storage, petData.storagePath);
+                await deleteObject(oldFileRef).catch(err => {
+                    // It's not critical if the old file doesn't exist, so we just warn
+                    console.warn("Old file not found during edit, skipping deletion:", err);
+                });
+            }
         }
     } catch(error) {
         console.error("Error uploading image: ", error);
-        toast({ title: "Image Upload Failed", description: "Could not save the new profile picture.", variant: "destructive" });
+        toast({ title: "Image Upload Failed", description: "Could not save the new profile picture. Please try again.", variant: "destructive" });
         setIsSubmitting(false);
         return;
     }
