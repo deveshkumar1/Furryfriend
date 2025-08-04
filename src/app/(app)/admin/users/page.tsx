@@ -104,9 +104,11 @@ export default function ManageUsersPage() {
         description="View, edit, and manage all user accounts on the platform."
         icon={Users}
         action={
-          <Button disabled>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add New User
-          </Button>
+          <Link href="/admin/users/new">
+            <Button>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add New User
+            </Button>
+          </Link>
         }
       />
       <Card className="shadow-lg">
