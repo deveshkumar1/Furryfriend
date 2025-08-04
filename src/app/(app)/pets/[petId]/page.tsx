@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, CalendarIcon as CalendarIconLucide, FileText, Download, Users, Loader2, AlertTriangle, Upload, Link as LinkIcon, Trash2 } from 'lucide-react';
+import { PawPrint, Edit3, ShieldCheck, Pill, LineChart, Share2, PlusCircle, CalendarIcon as CalendarIconLucide, FileText, Download, Users, Loader2, AlertTriangle, Upload, Link as LinkIcon, Trash2, Info } from 'lucide-react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,7 +17,7 @@ import { db, storage } from '@/lib/firebase';
 import { doc, onSnapshot, DocumentData, collection, addDoc, serverTimestamp, query, where, orderBy, updateDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -192,14 +192,18 @@ export default function PetProfilePage() {
     let documentUrl = editingVaccination?.documentUrl || "";
     let storagePath = editingVaccination?.storagePath || "";
 
-    // Step 1: Handle file operations (upload, delete) first.
+    // Step 1: Handle file operations.
     try {
         // Case 1: A new file is being uploaded.
         if (currentFile) {
             // If there was an old file, delete it first.
             if (editingVaccination?.storagePath) {
-                const oldFileRef = ref(storage, editingVaccination.storagePath);
-                await deleteObject(oldFileRef);
+                try {
+                    const oldFileRef = ref(storage, editingVaccination.storagePath);
+                    await deleteObject(oldFileRef);
+                } catch (delError: any) {
+                    if (delError.code !== 'storage/object-not-found') throw delError;
+                }
             }
             // Upload the new file
             storagePath = `users/${user.uid}/pets/${pet.id}/vaccinations/${uuidv4()}-${currentFile.name}`;
@@ -207,10 +211,14 @@ export default function PetProfilePage() {
             const uploadResult = await uploadBytes(newFileRef, currentFile);
             documentUrl = await getDownloadURL(uploadResult.ref);
         }
-        // Case 2: The existing file was removed and there's no new file.
+        // Case 2: The existing file was removed (no preview) and there's no new file.
         else if (!imagePreview && editingVaccination?.storagePath) {
-            const oldFileRef = ref(storage, editingVaccination.storagePath);
-            await deleteObject(oldFileRef);
+             try {
+                const oldFileRef = ref(storage, editingVaccination.storagePath);
+                await deleteObject(oldFileRef);
+             } catch (delError: any) {
+                 if (delError.code !== 'storage/object-not-found') throw delError;
+             }
             documentUrl = "";
             storagePath = "";
         }
@@ -218,7 +226,7 @@ export default function PetProfilePage() {
         console.error("Firebase Storage Error: ", e);
         toast({
             title: "File Upload Error",
-            description: `Could not save the document. Please check your Firebase Storage rules and network. Error: ${e.code}`,
+            description: `Could not save the document. Check your Storage security rules. Error: ${e.message}`,
             variant: "destructive"
         });
         return; // Stop the function if file operation fails
@@ -391,11 +399,19 @@ export default function PetProfilePage() {
               </Dialog>
             </CardHeader>
             <CardContent>
+             <Alert className="mb-4">
+                <Info className="h-4 w-4" />
+                <AlertTitle>Firebase Storage Rules Required</AlertTitle>
+                <AlertDescription>
+                  For file uploads to work, you must enable Firebase Storage and set the correct security rules in the Firebase Console. If uploads hang or fail, please ensure your rules allow authenticated users to write to their own storage paths.
+                </AlertDescription>
+              </Alert>
+
               {isLoadingVaccinations ? ( <div className="flex justify-center items-center py-4"><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading...</p></div>
               ) : vaccinationError ? (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
+                  <AlertTitle>Error Loading Records</AlertTitle>
                   <AlertDescription>
                     {vaccinationError}
                   </AlertDescription>
