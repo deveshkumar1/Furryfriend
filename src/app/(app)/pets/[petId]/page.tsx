@@ -419,7 +419,13 @@ export default function PetProfilePage() {
         title={pet.name}
         description={`${pet.species} ${pet.breed ? `- ${pet.breed}` : ''}`}
         icon={PawPrint}
-        action={ <Link href={`/pets/${pet.id}/edit`}><Button variant="outline" disabled><Edit3 className="mr-2 h-4 w-4" /> Edit Profile</Button></Link> }
+        action={
+          <Button asChild variant="outline">
+            <Link href={`/pets/${pet.id}/edit`}>
+              <Edit3 className="mr-2 h-4 w-4" /> Edit Profile
+            </Link>
+          </Button>
+        }
       />
 
       <Tabs defaultValue="overview" className="w-full">
@@ -680,7 +686,7 @@ export default function PetProfilePage() {
           <Card className="shadow-lg">
             <CardHeader><CardTitle>Medical Records & Sharing</CardTitle><CardDescription>Export records or share them. (Coming Soon)</CardDescription></CardHeader>
             <CardContent className="space-y-6">
-              <div className="p-4 border rounded-lg bg-secondary/30"><h3 className="font-semibold text-lg mb-2 flex items-center"><FileText className="mr-2 h-5 w-5 text-primary" /> Export Records</h3><p className="text-sm text-muted-foreground mb-3">Download a comprehensive PDF of medical history.</p><Button disabled><Download className="mr-2 h-4 w-4" /> Export as PDF</Button></div>
+              <div className="p-4 border rounded-lg bg-secondary/30"><h3 className="font-semibold text-lg mb-2 flex items-center"><FileText className="mr-2 h-5 w-5 text-primary" /> Export Records</h3><p className="text-sm text-muted-foreground mb-3">Download a comprehensive PDF of all your pet data, including profiles, medical history, and appointments.</p><Button disabled><Download className="mr-2 h-4 w-4" /> Export as PDF</Button></div>
               <div className="p-4 border rounded-lg bg-secondary/30"><h3 className="font-semibold text-lg mb-2 flex items-center"><Share2 className="mr-2 h-5 w-5 text-accent" /> Share with Veterinarian</h3><p className="text-sm text-muted-foreground mb-3">Grant temporary access to records to a veterinarian. Requires Pro plan.</p>
                 <div className="space-y-3"><div className="flex gap-2"><Input id="vetEmail" type="email" placeholder="vet@example.com" className="w-full p-2 border rounded-md" disabled /><Button variant="outline" disabled>Send Invite</Button></div><div className="mt-4"><h4 className="font-medium text-md mb-1 flex items-center"><Users className="mr-2 h-4 w-4"/>Current Sharing Permissions:</h4><ul className="text-sm list-disc list-inside pl-2 text-muted-foreground"><li>Dr. Smith (Primary Vet) - Full Access (Mock)</li><li>Animal Hospital XYZ (Emergency Contact) - Read-only until 2024-09-01 (Mock)</li></ul></div></div>
               </div>
