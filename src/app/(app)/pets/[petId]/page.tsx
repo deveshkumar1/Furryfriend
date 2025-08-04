@@ -163,11 +163,14 @@ export default function PetProfilePage() {
     setVaccinationError(null);
     const q = query(
       collection(db, "vaccinations"),
-      where("petId", "==", petId),
-      orderBy("dateAdministered", "desc")
+      where("petId", "==", petId)
+      // Removing orderBy to prevent index error. We will sort on the client.
+      // orderBy("dateAdministered", "desc") 
     );
     const unsubscribeVaccinations = onSnapshot(q, (querySnapshot) => {
       const recordsData: VaccinationRecord[] = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VaccinationRecord));
+      // Sort the records by date on the client side
+      recordsData.sort((a, b) => new Date(b.dateAdministered).getTime() - new Date(a.dateAdministered).getTime());
       setPetVaccinations(recordsData);
       setIsLoadingVaccinations(false);
     }, (err) => {
