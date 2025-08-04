@@ -1,43 +1,122 @@
+
+"use client";
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { HeartPulse, PlusCircle, Edit3, AlertTriangle } from 'lucide-react';
-import Link from 'next/link';
+import { HeartPulse, PlusCircle, Edit3, AlertTriangle, Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
+import { format } from 'date-fns';
 
-// Mock data for multiple pets' medications
-const allMedications = [
-  { id: 'm1', petName: 'Buddy', medicationName: 'Heartworm Prevention', dosage: '1 tablet monthly', startDate: '2023-01-01', status: 'Active', veterinarian: 'Dr. Smith' },
-  { id: 'm2', petName: 'Buddy', medicationName: 'Flea & Tick', dosage: '1 topical monthly', startDate: '2023-01-01', status: 'Active', veterinarian: 'Dr. Smith' },
-  { id: 'm3', petName: 'Lucy', medicationName: 'Thyroid Support', dosage: '0.5ml twice daily', startDate: '2024-03-15', status: 'Active', veterinarian: 'Dr. Pawson' },
-  { id: 'm4', petName: 'Charlie', medicationName: 'Joint Supplement', dosage: '1 chew daily', startDate: '2024-05-01', status: 'Needs Refill', veterinarian: 'Dr. Vetson' },
-];
-
-// Feature Gating: This page might require a "premium" subscription.
-// For demo, we'll assume the user has access.
-const currentUserSubscription = "premium"; // "free", "pro", "premium"
-const requiredSubscription = "premium";
+interface MedicationRecord extends DocumentData {
+  id: string;
+  petId: string;
+  petName: string;
+  userId: string;
+  medicationName: string;
+  dosage: string;
+  startDate: string; // Stored as 'yyyy-MM-dd'
+  endDate?: string;  // Stored as 'yyyy-MM-dd'
+  veterinarian: string;
+  notes?: string;
+  createdAt?: any;
+}
 
 export default function AllMedicationsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const [medications, setMedications] = useState<MedicationRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (currentUserSubscription !== requiredSubscription && requiredSubscription !== "free") {
+  // For demo, we are not gating this page.
+  // const currentUserSubscription = "premium"; 
+  // const requiredSubscription = "premium";
+
+  useEffect(() => {
+    if (authLoading) {
+      setIsLoading(true);
+      return;
+    }
+
+    if (!user) {
+      setIsLoading(false);
+      setError("Please log in to view medication records.");
+      setMedications([]);
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+
+    const q = query(
+      collection(db, "medications"),
+      where("userId", "==", user.uid),
+      orderBy("startDate", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const recordsData: MedicationRecord[] = querySnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as MedicationRecord));
+      setMedications(recordsData);
+      setIsLoading(false);
+    }, (err) => {
+      console.error("Error fetching ALL medication records: ", err);
+      setError("Failed to load medication records. Check browser console for specific Firestore error (likely a missing index).");
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user, authLoading]);
+
+  // This check could be re-enabled for subscription gating
+  // if (currentUserSubscription !== requiredSubscription && requiredSubscription !== "free") { ... }
+
+  if (authLoading || isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
-        <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">Access Denied</h2>
-        <p className="text-muted-foreground mb-4">
-          This feature requires a {requiredSubscription} subscription.
-        </p>
-        <Link href="/subscriptions">
-          <Button>Upgrade Subscription</Button>
-        </Link>
-      </div>
+      <>
+        <PageHeader
+          title="All Pets Medication Tracker"
+          description="Consolidated view of medication schedules and statuses for all your pets."
+          icon={HeartPulse}
+        />
+        <Card className="shadow-lg text-center py-12">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary mb-4" />
+          <CardTitle>Loading Records...</CardTitle>
+        </Card>
+      </>
     );
   }
-  
-  const activeMedications = allMedications.filter(med => med.status === 'Active');
-  const needsRefillMedications = allMedications.filter(med => med.status === 'Needs Refill');
+
+  if (error) {
+    return (
+      <>
+        <PageHeader title="Medication Tracker" icon={HeartPulse} />
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] text-center">
+          <AlertTriangle className="w-16 h-16 text-destructive mb-4" />
+          <h2 className="text-2xl font-semibold mb-2 text-destructive">Error</h2>
+          <p className="text-muted-foreground mb-4 px-4 whitespace-pre-wrap">{error}</p>
+        </div>
+      </>
+    );
+  }
+
+  const getStatus = (med: MedicationRecord): { text: string; variant: "default" | "secondary" | "destructive" } => {
+    if (med.endDate) {
+      const endDate = new Date(med.endDate);
+      if (endDate < new Date()) {
+        return { text: "Completed", variant: "secondary" };
+      }
+    }
+    return { text: "Active", variant: "default" };
+  };
 
   return (
     <>
@@ -46,7 +125,7 @@ export default function AllMedicationsPage() {
         description="Consolidated view of medication schedules and statuses for all your pets."
         icon={HeartPulse}
         action={
-          <Button variant="outline" disabled> {/* Placeholder, add to specific pet */}
+          <Button variant="outline" disabled>
             <PlusCircle className="mr-2 h-4 w-4" /> Add New Medication
           </Button>
         }
@@ -55,55 +134,61 @@ export default function AllMedicationsPage() {
         <CardHeader>
           <CardTitle>Medication Overview</CardTitle>
           <CardDescription>
-            {activeMedications.length} active medication(s). {needsRefillMedications.length > 0 && <span className="text-destructive font-semibold">{needsRefillMedications.length} medication(s) need refill.</span>}
+            Displaying {medications.length} medication record(s) across all pets.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {allMedications.length > 0 ? (
+          {medications.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Pet Name</TableHead>
                   <TableHead>Medication</TableHead>
                   <TableHead>Dosage</TableHead>
-                  <TableHead>Start Date</TableHead>
+                  <TableHead>Date Range</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Prescribed By</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[...needsRefillMedications, ...activeMedications].map((med) => (
-                  <TableRow key={med.id} className={med.status === 'Needs Refill' ? "bg-destructive/10" : ""}>
+                {medications.map((med) => {
+                  const status = getStatus(med);
+                  return (
+                  <TableRow key={med.id}>
                     <TableCell className="font-medium">
-                      <Link href={`/pets/${med.petName.toLowerCase()}`} className="hover:underline text-primary"> {/* Assuming petId is lowercase name */}
+                      <Link href={`/pets/${med.petId}`} className="hover:underline text-primary">
                         {med.petName}
                       </Link>
                     </TableCell>
                     <TableCell>{med.medicationName}</TableCell>
                     <TableCell>{med.dosage}</TableCell>
-                    <TableCell>{med.startDate}</TableCell>
                     <TableCell>
-                      <Badge variant={med.status === 'Needs Refill' ? "destructive" : (med.status === 'Active' ? "default" : "secondary")}>
-                        {med.status}
+                      {format(new Date(med.startDate), "MMM dd, yyyy")} - {med.endDate ? format(new Date(med.endDate), "MMM dd, yyyy") : 'Ongoing'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={status.variant}>
+                        {status.text}
                       </Badge>
                     </TableCell>
                     <TableCell>{med.veterinarian}</TableCell>
                     <TableCell className="text-right">
-                       <Link href={`/pets/${med.petName.toLowerCase()}#medications`}> {/* Link to pet's medication tab */}
-                        <Button variant="ghost" size="icon"><Edit3 className="h-4 w-4" /></Button>
+                       <Link href={`/pets/${med.petId}?tab=medications`}>
+                        <Button variant="ghost" size="icon" title="View/Edit on Pet Profile"><Edit3 className="h-4 w-4" /></Button>
                       </Link>
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
               </TableBody>
             </Table>
           ) : (
-            <p className="text-muted-foreground text-center py-4">No medication records found for any pets.</p>
+            <p className="text-muted-foreground text-center py-10">
+              <HeartPulse className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              No medication records found for any pets. Add them from a pet's profile.
+            </p>
           )}
         </CardContent>
       </Card>
     </>
   );
 }
-
