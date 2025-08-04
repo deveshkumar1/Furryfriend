@@ -31,17 +31,19 @@ export type CreateUserOutput = z.infer<typeof CreateUserOutputSchema>;
 
 // Initialize Firebase Admin SDK if not already initialized
 if (!admin.apps.length) {
-  // IMPORTANT: The service account credentials should be stored securely as environment variables.
-  // In Firebase/Google Cloud environments, this can often be handled automatically.
-  // For local development, you might need a service account JSON file.
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
-    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-    : undefined;
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  });
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
+  
+  if (serviceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(JSON.parse(serviceAccount)),
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    });
+  } else {
+    // Let the Admin SDK discover credentials automatically
+    admin.initializeApp({
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    });
+  }
 }
 
 const db = admin.firestore();
@@ -98,7 +100,7 @@ const createUserFlow = ai.defineFlow(
             errorMessage = 'The email address is already in use by another account.';
             break;
           case 'auth/invalid-password':
-            errorMessage = 'The password must be a string with at least 6 characters.';
+            errorMessage = 'The password must be a string with at least 8 characters.';
             break;
           default:
             errorMessage = error.message;
