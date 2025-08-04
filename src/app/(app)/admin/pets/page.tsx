@@ -229,9 +229,11 @@ export default function ManagePetsPage() {
                         </div>
                     </TableCell>
                     <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" title="Edit Pet (WIP)" disabled>
-                            <Edit3 className="h-4 w-4" />
-                        </Button>
+                       <Link href={`/pets/${pet.id}`} passHref>
+                          <Button variant="ghost" size="icon" title="Edit Pet">
+                              <Edit3 className="h-4 w-4" />
+                          </Button>
+                        </Link>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" title="Delete Pet" className="text-destructive">
