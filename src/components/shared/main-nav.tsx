@@ -16,7 +16,9 @@ import {
   MapPin,
   CreditCard,
   ShieldCheck,
-  HeartPulse
+  HeartPulse,
+  Circle,
+  Loader2
 } from 'lucide-react';
 import {
   SidebarMenu,
@@ -28,6 +30,10 @@ import {
 } from '@/components/ui/sidebar';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { useAuth } from '@/context/AuthContext';
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, DocumentData, orderBy } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from 'react';
 
 export interface NavItem {
   title: string;
@@ -37,10 +43,16 @@ export interface NavItem {
   badge?: string | number;
   variant?: 'default' | 'ghost';
   children?: NavItem[];
-  disabled?: boolean; 
+  disabled?: boolean;
 }
 
-const navItems: NavItem[] = [
+interface Pet extends DocumentData {
+  id: string;
+  name: string;
+}
+
+
+const baseNavItems: NavItem[] = [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   {
     title: 'My Pets',
@@ -48,9 +60,7 @@ const navItems: NavItem[] = [
     icon: PawPrint,
     children: [
       { title: 'All Pets', href: '/pets', icon: PawPrint },
-      // { title: 'Add New Pet', href: '/pets/new', icon: PawPrint }, // Removed this line
-      { title: 'Vaccination Records', href: '/pets/vaccinations', icon: ShieldCheck },
-      { title: 'Medication Tracker', href: '/pets/medications', icon: HeartPulse },
+      // Dynamic pets will be injected here
     ],
   },
   {
@@ -87,19 +97,74 @@ function NavLinkContent({ item }: { item: NavItem }) {
 
 export function MainNav() {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [isLoadingPets, setIsLoadingPets] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setPets([]);
+      setIsLoadingPets(false);
+      return;
+    }
+    
+    setIsLoadingPets(true);
+    const q = query(collection(db, "pets"), where("userId", "==", user.uid), orderBy("name"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const userPets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pet));
+      setPets(userPets);
+      setIsLoadingPets(false);
+    }, (error) => {
+        console.error("Failed to fetch pets for sidebar:", error);
+        setPets([]);
+        setIsLoadingPets(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const navItems = useMemo(() => {
+    const myPetsItem = baseNavItems.find(item => item.title === 'My Pets');
+
+    if (myPetsItem && myPetsItem.children) {
+        const petNavItems: NavItem[] = pets.map(pet => ({
+            title: pet.name,
+            href: `/pets/${pet.id}`,
+            icon: Circle, // Using Circle icon for individual pets for a subtle look
+        }));
+
+        const petChildren = [myPetsItem.children[0]]; // Start with "All Pets"
+
+        if (isLoadingPets) {
+            petChildren.push({ title: "Loading pets...", href: "#", icon: Loader2, disabled: true });
+        } else if (pets.length > 0) {
+            petChildren.push(...petNavItems);
+        }
+        
+        myPetsItem.children = petChildren;
+    }
+    
+    return baseNavItems.map(item => item.title === 'My Pets' && myPetsItem ? myPetsItem : item);
+  }, [pets, isLoadingPets]);
 
   const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
-    const isActive = pathname === item.href || (item.href !== '/dashboard' && item.href !== '/' && pathname.startsWith(item.href));
-    
-    const isDisabled = item.disabled; 
-    
+    // For My Pets accordion, we check if any child is active
+    const isParentActive = item.children && item.children.some(child => pathname === child.href || pathname.startsWith(child.href + '/'));
+    const isActive = (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/' && pathname.startsWith(item.href))) || isParentActive;
+
+    const isDisabled = item.disabled;
     const tooltipContent = item.title;
+    
+    const iconToRender = item.icon === Loader2 
+        ? <Loader2 className="h-5 w-5 animate-spin" /> 
+        : <item.icon className="h-5 w-5" />;
+
 
     if (item.children && item.children.length > 0) {
       return (
         <Accordion type="single" collapsible className="w-full" key={item.title}>
           <AccordionItem value={item.title} className="border-none">
-            <AccordionTrigger 
+            <AccordionTrigger
               className={cn(
                 "flex items-center w-full justify-start gap-2 rounded-md p-2 text-left text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground",
                 isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground",
@@ -110,7 +175,9 @@ export function MainNav() {
               aria-disabled={isDisabled}
               title={tooltipContent}
             >
-              <NavLinkContent item={item} />
+              <item.icon className="h-5 w-5" />
+              <span className="truncate">{item.title}</span>
+              {item.badge && (<Badge variant="secondary" className="ml-auto">{item.badge}</Badge>)}
             </AccordionTrigger>
             <AccordionContent className="pb-0">
               <SidebarMenuSub className="mx-0 pl-4 pr-0 py-1 border-l-2 border-sidebar-border/50">
@@ -126,6 +193,14 @@ export function MainNav() {
       );
     }
 
+    const navLinkContent = (
+         <>
+            {iconToRender}
+            <span className="truncate">{item.title}</span>
+            {item.badge && (<Badge variant="secondary" className="ml-auto">{item.badge}</Badge>)}
+        </>
+    );
+
     if (isSubItem) {
       return (
         <SidebarMenuSubButton
@@ -138,13 +213,9 @@ export function MainNav() {
           onClick={(e) => { if (isDisabled) e.preventDefault(); }}
         >
           {isDisabled ? (
-            <div className="flex items-center gap-2 w-full">
-              <NavLinkContent item={item} />
-            </div>
+            <div className="flex items-center gap-2 w-full">{navLinkContent}</div>
           ) : (
-            <Link href={item.href} className="flex items-center gap-2 w-full">
-              <NavLinkContent item={item} />
-            </Link>
+            <Link href={item.href} className="flex items-center gap-2 w-full">{navLinkContent}</Link>
           )}
         </SidebarMenuSubButton>
       );
@@ -162,13 +233,9 @@ export function MainNav() {
         onClick={(e) => { if (isDisabled) e.preventDefault(); }}
       >
         {isDisabled ? (
-          <div className="flex items-center gap-2 w-full">
-             <NavLinkContent item={item} />
-          </div>
+          <div className="flex items-center gap-2 w-full">{navLinkContent}</div>
         ) : (
-          <Link href={item.href} className="flex items-center gap-2 w-full">
-             <NavLinkContent item={item} />
-          </Link>
+          <Link href={item.href} className="flex items-center gap-2 w-full">{navLinkContent}</Link>
         )}
       </SidebarMenuButton>
     );
@@ -179,7 +246,7 @@ export function MainNav() {
     <nav className="flex flex-col gap-1 px-2 py-4">
       <SidebarMenu>
         {navItems.map((item) => (
-          <SidebarMenuItem key={item.href}>
+          <SidebarMenuItem key={item.title}>
             {renderNavItem(item)}
           </SidebarMenuItem>
         ))}
