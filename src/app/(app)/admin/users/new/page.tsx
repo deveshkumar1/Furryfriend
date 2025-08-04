@@ -15,10 +15,7 @@ import { Button } from '@/components/ui/button';
 import { UserPlus, Loader2, AlertTriangle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
-
+import { createFirebaseUser } from '@/ai/flows/create-user-flow';
 
 const newUserFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -47,14 +44,37 @@ export default function NewUserPage() {
 
   async function onSubmit(values: NewUserFormValues) {
     setIsLoading(true);
-    setError("Admin user creation via the client is disabled to prevent session conflicts. A backend function is required for this feature.");
-    toast({
-        title: "Feature Disabled",
-        description: "This form is currently not functional. Backend implementation is pending.",
-        variant: "destructive"
-    });
-    setIsLoading(false);
-    return;
+    setError(null);
+
+    try {
+      const result = await createFirebaseUser(values);
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      toast({
+        title: "User Created Successfully",
+        description: `Account for ${values.email} has been created.`,
+      });
+      router.push('/admin/users');
+
+    } catch (err: any) {
+      console.error("Error creating user from admin:", err);
+      let errorMessage = "An unexpected error occurred.";
+      if (err.message) {
+         // Use the error message from the flow
+        errorMessage = err.message;
+      }
+      setError(errorMessage);
+      toast({
+        title: "Creation Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -68,17 +88,10 @@ export default function NewUserPage() {
         <CardHeader>
           <CardTitle>New User Details</CardTitle>
           <CardDescription>
-            Fill out the form below to create a new user. The user will be created in Firebase Authentication.
+            Fill out the form below to create a new user. The user will be created in Firebase Authentication and Firestore.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert variant="destructive" className="mb-4">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Feature Currently Disabled</AlertTitle>
-              <AlertDescription>
-                  Creating users as an admin from the client-side is disabled to prevent the admin from being logged out. This functionality requires a secure backend implementation (e.g., a Cloud Function or Genkit Flow) which is not yet in place.
-              </AlertDescription>
-          </Alert>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -88,7 +101,7 @@ export default function NewUserPage() {
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Jane Doe" {...field} disabled={true} />
+                      <Input placeholder="e.g., Jane Doe" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -101,7 +114,7 @@ export default function NewUserPage() {
                   <FormItem>
                     <FormLabel>Email Address</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="user@example.com" {...field} disabled={true} />
+                      <Input type="email" placeholder="user@example.com" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -114,7 +127,7 @@ export default function NewUserPage() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="Set an initial password" {...field} disabled={true} />
+                      <Input type="password" placeholder="Set an initial password" {...field} disabled={isLoading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -133,7 +146,7 @@ export default function NewUserPage() {
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        disabled={true}
+                        disabled={isLoading}
                       />
                     </FormControl>
                   </FormItem>
@@ -142,6 +155,7 @@ export default function NewUserPage() {
               
               {error && (
                 <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Creation Failed</AlertTitle>
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
@@ -151,7 +165,7 @@ export default function NewUserPage() {
                 <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={true}>
+                <Button type="submit" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
