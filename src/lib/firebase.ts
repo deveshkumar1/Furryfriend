@@ -52,30 +52,41 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Function to check if a user has the 'admin' role
+    // Function to check if a user has the 'admin' role in their user document
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
-    // Users can manage their own user document
+    // Users can create an account and their own user document
     match /users/{userId} {
-      allow read, update: if request.auth.uid == userId || isAdmin();
+      // Admins can see all user docs, users can see their own.
+      allow list, get: if isAdmin() || request.auth.uid == userId;
+      // Users can update their own profile.
+      allow update: if request.auth.uid == userId;
+      // Any authenticated user can create a user profile document (usually right after signup).
       allow create: if request.auth != null;
-      // Admins can list all users
-      allow list: if isAdmin();
+      // Admins can delete users (firestore document part)
+      allow delete: if isAdmin();
     }
 
-    // Users can manage their own data, Admins can read anyone's data
+    // Admins can manage all pet data. Users can only manage their own.
     match /pets/{petId} {
-      allow read, write, delete: if (request.auth.uid == resource.data.userId) || (request.auth.uid == request.resource.data.userId) || isAdmin();
-    }
-
-    match /vaccinations/{vaccinationId} {
-      allow read, write, delete: if (request.auth.uid == resource.data.userId) || (request.auth.uid == request.resource.data.userId) || isAdmin();
+      allow read, write, delete: if isAdmin() || (request.auth.uid == resource.data.userId);
     }
     
+    // Admins can list all pets. Users can list their own pets.
+    match /pets/{petId} {
+        allow list: if isAdmin() || (request.auth.uid == query.filters.userId[0]);
+    }
+
+    // Admins can manage all vaccination data. Users can only manage their own.
+    match /vaccinations/{vaccinationId} {
+      allow read, write, delete: if isAdmin() || (request.auth.uid == resource.data.userId);
+    }
+    
+     // Admins can manage all medication data. Users can only manage their own.
     match /medications/{medicationId} {
-        allow read, write, delete: if (request.auth.uid == resource.data.userId) || (request.auth.uid == request.resource.data.userId) || isAdmin();
+      allow read, write, delete: if isAdmin() || (request.auth.uid == resource.data.userId);
     }
     
     // Users can manage their own saved vets

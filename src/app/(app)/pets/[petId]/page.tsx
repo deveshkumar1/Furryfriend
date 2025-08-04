@@ -106,7 +106,7 @@ const healthChartConfig = {
 export default function PetProfilePage() {
   const params = useParams();
   const petId = params.petId as string;
-  const { user, loading: authLoading } = useAuth();
+  const { user, userProfile, loading: authLoading } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -144,21 +144,25 @@ export default function PetProfilePage() {
     const unsubscribePet = onSnapshot(petDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const petData = { id: docSnap.id, ...docSnap.data() } as PetData;
-        if (petData.userId !== user.uid) { setError("Access denied."); setPet(null);
-        } else { setPet(petData); }
+        // Admin check: allow access if user is admin OR the pet's owner
+        if (userProfile?.isAdmin || petData.userId === user.uid) {
+            setPet(petData);
+        } else {
+            setError("You do not have permission to view this pet's profile.");
+            setPet(null);
+        }
       } else { setError("Pet not found."); setPet(null); }
       setIsLoadingPet(false);
-    }, (err) => { console.error("Error fetching pet: ", err); setError("Failed to load pet."); setIsLoadingPet(false); });
+    }, (err) => { console.error("Error fetching pet: ", err); setError("Failed to load pet data. Check Firestore rules and network connection."); setIsLoadingPet(false); });
     return () => unsubscribePet();
-  }, [petId, user, authLoading]);
+  }, [petId, user, userProfile, authLoading]);
 
   // Effect for fetching vaccination data
   useEffect(() => {
-    if (!user || !petId) { setIsLoadingVaccinations(false); return; }
+    if (!petId) { setIsLoadingVaccinations(false); return; }
     setVaccinationError(null);
     const q = query(
       collection(db, "vaccinations"),
-      where("userId", "==", user.uid),
       where("petId", "==", petId),
       orderBy("dateAdministered", "desc")
     );
@@ -172,15 +176,14 @@ export default function PetProfilePage() {
       setIsLoadingVaccinations(false);
     });
     return () => unsubscribeVaccinations();
-  }, [user, petId]);
+  }, [petId]);
   
   // Effect for fetching medication data
   useEffect(() => {
-    if (!user || !petId) { setIsLoadingMedications(false); return; }
+    if (!petId) { setIsLoadingMedications(false); return; }
     setMedicationError(null);
     const q = query(
         collection(db, "medications"),
-        where("userId", "==", user.uid),
         where("petId", "==", petId),
         orderBy("startDate", "desc")
     );
@@ -194,7 +197,7 @@ export default function PetProfilePage() {
         setIsLoadingMedications(false);
     });
     return () => unsubscribeMedications();
-}, [user, petId]);
+}, [petId]);
 
 
   const handleImageFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -282,7 +285,7 @@ export default function PetProfilePage() {
     }
     
     const recordData = {
-      userId: user.uid,
+      userId: pet.userId, // Use the pet's owner ID
       petId: pet.id,
       petName: pet.name,
       vaccineName: values.vaccineName,
@@ -367,7 +370,7 @@ export default function PetProfilePage() {
     }
     
     const recordData = {
-        userId: user.uid,
+        userId: pet.userId, // Use the pet's owner ID
         petId: pet.id,
         petName: pet.name,
         medicationName: values.medicationName,
