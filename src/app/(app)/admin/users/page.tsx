@@ -1,25 +1,27 @@
 
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Users, Edit3, Trash2, Loader2, AlertTriangle, PlusCircle } from 'lucide-react';
+import { Users, Edit3, Trash2, Loader2, AlertTriangle, PlusCircle, Search, XCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
 
 
 interface UserProfile extends DocumentData {
   uid: string;
   name: string;
   email: string;
+  phone?: string;
   isAdmin?: boolean;
   createdAt: any; // Firestore Timestamp
   avatarUrl?: string;
@@ -36,6 +38,7 @@ export default function ManageUsersPage() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     setIsLoading(true);
@@ -61,6 +64,16 @@ export default function ManageUsersPage() {
 
     return () => unsubscribe();
   }, []);
+
+  const filteredUsers = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    if (!term) return users;
+    return users.filter(user =>
+      user.name.toLowerCase().includes(term) ||
+      user.email.toLowerCase().includes(term) ||
+      (user.phone && user.phone.toLowerCase().includes(term))
+    );
+  }, [users, searchTerm]);
   
   return (
     <>
@@ -76,10 +89,29 @@ export default function ManageUsersPage() {
       />
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>All Users ({users.length})</CardTitle>
+          <CardTitle>All Users ({filteredUsers.length})</CardTitle>
           <CardDescription>
             A complete list of all registered users.
           </CardDescription>
+          <div className="relative mt-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input 
+              placeholder="Search by name, email, or phone..." 
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+                <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-7 w-7"
+                    onClick={() => setSearchTerm('')}
+                >
+                    <XCircle className="h-5 w-5 text-muted-foreground" />
+                </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
            {isLoading ? (
@@ -93,19 +125,20 @@ export default function ManageUsersPage() {
                 <p className="font-semibold">Error Loading Users</p>
                 <p className="text-sm">{error}</p>
              </div>
-           ) : users.length > 0 ? (
+           ) : filteredUsers.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Joined On</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <TableRow key={user.uid}>
                     <TableCell className="font-medium flex items-center gap-3">
                       <Avatar className="h-9 w-9">
@@ -115,6 +148,7 @@ export default function ManageUsersPage() {
                       <span>{user.name}</span>
                     </TableCell>
                     <TableCell>{user.email}</TableCell>
+                    <TableCell>{user.phone || 'N/A'}</TableCell>
                     <TableCell>
                       {user.isAdmin ? <Badge variant="destructive">Admin</Badge> : <Badge variant="secondary">User</Badge>}
                     </TableCell>
@@ -136,7 +170,12 @@ export default function ManageUsersPage() {
           ) : (
              <div className="text-center py-12">
                 <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No users found.</p>
+                 <p className="text-muted-foreground font-semibold">No Users Found</p>
+                {searchTerm ? (
+                    <p className="text-sm text-muted-foreground">No users match your search for "{searchTerm}".</p>
+                ) : (
+                    <p className="text-sm text-muted-foreground">There are no users on the platform yet.</p>
+                )}
              </div>
           )}
         </CardContent>
