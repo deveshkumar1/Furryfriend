@@ -32,9 +32,13 @@ interface UserProfileData extends DocumentData {
   dataAiHint?: string;
 }
 
+const phoneRegex = new RegExp(
+  /^([+]?[\s0-9]+)?(\d{3}|[(]?[0-9]+[)])?([-]?[\s]?[0-9])+$/
+);
+
 const profileFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
-  phone: z.string().optional(),
+  phone: z.string().regex(phoneRegex, 'Invalid phone number format.').optional().or(z.literal('')),
   address: z.string().optional(),
   bio: z.string().max(500, "Bio can be at most 500 characters.").optional(),
   // avatarUrl could be handled separately if file upload is implemented
