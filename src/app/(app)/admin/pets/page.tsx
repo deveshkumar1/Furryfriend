@@ -10,9 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { PawPrint, Edit3, Trash2, Loader2, AlertTriangle, User, Search, XCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, orderBy, DocumentData, getDocs, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, DocumentData, getDocs, where, doc, deleteDoc } from 'firebase/firestore';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 
 interface Pet extends DocumentData {
@@ -47,6 +49,7 @@ export default function ManagePetsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
 
   useEffect(() => {
     setIsLoading(true);
@@ -121,6 +124,23 @@ export default function ManagePetsPage() {
       pet.ownerName?.toLowerCase().includes(term)
     );
   }, [pets, searchTerm]);
+
+  const handleDeletePet = async (petId: string) => {
+    try {
+      await deleteDoc(doc(db, "pets", petId));
+      toast({
+        title: "Pet Deleted",
+        description: "The pet profile has been successfully deleted.",
+      });
+    } catch (err) {
+      console.error("Error deleting pet:", err);
+      toast({
+        title: "Error",
+        description: "Could not delete the pet profile. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <>
@@ -212,9 +232,25 @@ export default function ManagePetsPage() {
                        <Button variant="ghost" size="icon" title="Edit Pet (WIP)" disabled>
                             <Edit3 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" title="Delete Pet (WIP)" disabled>
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" title="Delete Pet" className="text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the pet profile for <span className="font-bold">{pet.name}</span>.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeletePet(pet.id)}>Continue</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}

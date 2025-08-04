@@ -11,10 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Users, Edit3, Trash2, Loader2, AlertTriangle, PlusCircle, Search, XCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, DocumentData, doc, deleteDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 
 interface UserProfile extends DocumentData {
@@ -39,6 +41,8 @@ export default function ManageUsersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
+  const { user: adminUser } = useAuth();
 
   useEffect(() => {
     setIsLoading(true);
@@ -64,6 +68,24 @@ export default function ManageUsersPage() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await deleteDoc(doc(db, "users", userId));
+      toast({
+        title: "User Document Deleted",
+        description: "The user's Firestore document has been deleted. For complete removal, please also delete the user from the Firebase Authentication tab.",
+      });
+    } catch (err) {
+      console.error("Error deleting user document:", err);
+      toast({
+        title: "Error",
+        description: "Could not delete the user document. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const filteredUsers = useMemo(() => {
     const term = searchTerm.toLowerCase();
@@ -159,9 +181,25 @@ export default function ManageUsersPage() {
                        <Button variant="ghost" size="icon" title="Edit User (WIP)" disabled>
                             <Edit3 className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" title="Delete User (WIP)" disabled>
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" title="Delete User" className="text-destructive" disabled={user.uid === adminUser?.uid}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will delete the user's Firestore document. It will NOT delete their authentication record. The user will no longer be able to log in properly. You cannot undo this action.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteUser(user.uid)}>Continue</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}
