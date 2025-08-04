@@ -67,13 +67,19 @@ function ProfilePageContent() {
   const profileUserId = searchParams.get('userId') || user?.uid;
 
   useEffect(() => {
-    if (authLoading || !profileUserId) {
-      setIsLoading(true);
+    if (authLoading) {
       return;
     }
 
+    if (!profileUserId) {
+        setIsLoading(false);
+        return;
+    }
+
     // Security check: Only admins can view/edit other users' profiles.
-    if (profileUserId !== user?.uid && !authUserProfile?.isAdmin) {
+    const canViewProfile = authUserProfile?.isAdmin || profileUserId === user?.uid;
+
+    if (!canViewProfile) {
       toast({ variant: 'destructive', title: 'Access Denied', description: "You don't have permission to view this profile." });
       router.push('/dashboard');
       return;
@@ -102,7 +108,7 @@ function ProfilePageContent() {
         setIsLoading(false);
     });
 
-  }, [profileUserId, user?.uid, authUserProfile?.isAdmin, authLoading, router, toast, form]);
+  }, [profileUserId, user?.uid, authUserProfile, authLoading, router, toast, form]);
 
   async function onSubmit(values: ProfileFormValues) {
     if (!profileUserId) {
