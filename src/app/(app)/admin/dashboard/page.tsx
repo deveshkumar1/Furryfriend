@@ -13,14 +13,14 @@ import { collection, getDocs } from 'firebase/firestore';
 interface Stats {
   totalUsers: number | null;
   totalPets: number | null;
-  activeSubscriptions: number | null; // Changed to allow null
+  activeSubscriptions: number | null;
 }
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Stats>({
     totalUsers: null,
     totalPets: null,
-    activeSubscriptions: null, // Initialized to null
+    activeSubscriptions: null,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -36,16 +36,15 @@ export default function AdminDashboardPage() {
           getDocs(petsCollectionRef)
         ]);
 
-        setStats({ // Set all stats in one go
+        setStats({
           totalUsers: usersSnapshot.size,
           totalPets: petsSnapshot.size,
-          activeSubscriptions: 80, // Keep static value but set after loading
+          activeSubscriptions: null, // Correctly set to null
         });
 
       } catch (error) {
         console.error("Error fetching admin stats:", error);
-        // Handle error, maybe show a toast
-        setStats({ // Set to null on error
+        setStats({
             totalUsers: null,
             totalPets: null,
             activeSubscriptions: null
