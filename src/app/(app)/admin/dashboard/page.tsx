@@ -13,14 +13,14 @@ import { collection, getDocs } from 'firebase/firestore';
 interface Stats {
   totalUsers: number | null;
   totalPets: number | null;
-  activeSubscriptions: number; // This will remain static for now
+  activeSubscriptions: number | null; // Changed to allow null
 }
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Stats>({
     totalUsers: null,
     totalPets: null,
-    activeSubscriptions: 80, // Placeholder
+    activeSubscriptions: null, // Initialized to null
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -36,15 +36,20 @@ export default function AdminDashboardPage() {
           getDocs(petsCollectionRef)
         ]);
 
-        setStats(prevStats => ({
-          ...prevStats,
+        setStats({ // Set all stats in one go
           totalUsers: usersSnapshot.size,
           totalPets: petsSnapshot.size,
-        }));
+          activeSubscriptions: 80, // Keep static value but set after loading
+        });
 
       } catch (error) {
         console.error("Error fetching admin stats:", error);
         // Handle error, maybe show a toast
+        setStats({ // Set to null on error
+            totalUsers: null,
+            totalPets: null,
+            activeSubscriptions: null
+        });
       } finally {
         setIsLoading(false);
       }
@@ -93,16 +98,12 @@ export default function AdminDashboardPage() {
             description="Pet profiles created by users"
           />
         
-        <Card className="shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
-            <Shield className="h-5 w-5 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeSubscriptions}</div>
-            <p className="text-xs text-muted-foreground">Users with Pro or Premium plans (static)</p>
-          </CardContent>
-        </Card>
+         <StatCard 
+            title="Active Subscriptions" 
+            value={stats.activeSubscriptions} 
+            icon={Shield}
+            description="Users with Pro or Premium plans"
+          />
       </div>
 
        <Card className="mt-6 shadow-lg">
