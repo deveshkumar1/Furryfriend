@@ -15,8 +15,6 @@ import {
   FileText,
   MapPin,
   CreditCard,
-  ShieldCheck,
-  HeartPulse,
   Circle,
   Loader2
 } from 'lucide-react';
@@ -51,7 +49,7 @@ interface Pet extends DocumentData {
   name: string;
 }
 
-// Base navigation structure without the items we want to remove
+// Base navigation structure
 const getBaseNavItems = (): NavItem[] => [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   {
@@ -59,7 +57,6 @@ const getBaseNavItems = (): NavItem[] => [
     href: '/pets',
     icon: PawPrint,
     children: [
-      { title: 'All Pets', href: '/pets', icon: PawPrint },
       // Dynamic pets will be injected here
     ],
   },
@@ -80,20 +77,6 @@ const getBaseNavItems = (): NavItem[] => [
   { title: 'Settings', href: '/settings', icon: Settings },
 ];
 
-
-function NavLinkContent({ item }: { item: NavItem }) {
-  return (
-    <>
-      <item.icon className="h-5 w-5" />
-      <span className="truncate">{item.title}</span>
-      {item.badge && (
-        <Badge variant="secondary" className="ml-auto">
-          {item.badge}
-        </Badge>
-      )}
-    </>
-  );
-}
 
 export function MainNav() {
   const pathname = usePathname();
@@ -136,7 +119,7 @@ export function MainNav() {
             icon: Circle,
         }));
         
-        let petChildren: NavItem[] = [{ title: 'All Pets', href: '/pets', icon: PawPrint }];
+        let petChildren: NavItem[] = [];
 
         if (isLoadingPets) {
             petChildren.push({ title: "Loading pets...", href: "#", icon: Loader2, disabled: true });
@@ -152,9 +135,9 @@ export function MainNav() {
   }, [pets, isLoadingPets]);
 
   const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
-    const isParentActive = item.children && item.children.some(child => pathname === child.href || pathname.startsWith(child.href + '/'));
-    const isActive = (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/' && pathname.startsWith(item.href))) || isParentActive;
-
+    const isParentOfActive = item.children && item.children.some(child => pathname.startsWith(child.href));
+    const isActive = (item.href === pathname || (item.href !== '/dashboard' && pathname.startsWith(item.href))) || isParentOfActive;
+    
     const isDisabled = item.disabled;
     const tooltipContent = item.title;
     
@@ -165,23 +148,31 @@ export function MainNav() {
 
     if (item.children && item.children.length > 0) {
       return (
-        <Accordion type="single" collapsible className="w-full" key={item.title}>
+        <Accordion type="single" collapsible className="w-full" key={item.title} defaultValue={isParentOfActive ? item.title : undefined}>
           <AccordionItem value={item.title} className="border-none">
-            <AccordionTrigger
-              className={cn(
-                "flex items-center w-full justify-start gap-2 rounded-md p-2 text-left text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground",
-                isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground",
-                isDisabled && "opacity-50 cursor-not-allowed",
-                "group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>svg:last-child]:ml-auto"
-              )}
-              disabled={isDisabled}
-              aria-disabled={isDisabled}
-              title={tooltipContent}
-            >
-              <item.icon className="h-5 w-5" />
-              <span className="truncate">{item.title}</span>
-              {item.badge && (<Badge variant="secondary" className="ml-auto">{item.badge}</Badge>)}
-            </AccordionTrigger>
+            <div className="flex items-center rounded-md pr-2 bg-transparent">
+              <Link
+                href={item.href}
+                className={cn(
+                  "flex items-center w-full justify-start gap-2 rounded-md p-2 text-left text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground flex-grow",
+                  isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground",
+                  isDisabled && "opacity-50 cursor-not-allowed",
+                  "group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2"
+                )}
+                title={tooltipContent}
+                onClick={(e) => { if (isDisabled) e.preventDefault(); }}
+              >
+                  {iconToRender}
+                  <span className="truncate">{item.title}</span>
+                  {item.badge && (<Badge variant="secondary" className="ml-auto">{item.badge}</Badge>)}
+              </Link>
+              <AccordionTrigger
+                className={cn(
+                  "p-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md [&>svg:last-child]:ml-auto",
+                  isActive && "text-sidebar-primary-foreground hover:text-sidebar-primary-foreground"
+                )}
+              />
+            </div>
             <AccordionContent className="pb-0">
               <SidebarMenuSub className="mx-0 pl-4 pr-0 py-1 border-l-2 border-sidebar-border/50">
                 {item.children.map((child) => (
@@ -205,10 +196,11 @@ export function MainNav() {
     );
 
     if (isSubItem) {
+      const isSubActive = pathname === item.href;
       return (
         <SidebarMenuSubButton
           asChild={!isDisabled}
-          isActive={isActive}
+          isActive={isSubActive}
           className={cn(isDisabled && "opacity-50 cursor-not-allowed")}
           aria-disabled={isDisabled}
           title={tooltipContent}
