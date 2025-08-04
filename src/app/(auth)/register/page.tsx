@@ -26,6 +26,7 @@ import { useState } from 'react';
 const registerSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   email: z.string().email({ message: 'Invalid email address.' }),
+  phone: z.string().optional(),
   password: z.string().min(8, { message: 'Password must be at least 8 characters.' }),
   confirmPassword: z.string(),
 }).refine(data => data.password === data.confirmPassword, {
@@ -45,6 +46,7 @@ export default function RegisterPage() {
     defaultValues: {
       name: '',
       email: '',
+      phone: '',
       password: '',
       confirmPassword: '',
     },
@@ -61,6 +63,7 @@ export default function RegisterPage() {
         uid: user.uid,
         name: values.name,
         email: values.email,
+        phone: values.phone || '',
         createdAt: serverTimestamp(),
       });
 
@@ -115,6 +118,19 @@ export default function RegisterPage() {
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input type="email" placeholder="you@example.com" {...field} disabled={isSubmitting}/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone Number (Optional)</FormLabel>
+                  <FormControl>
+                    <Input type="tel" placeholder="(555) 123-4567" {...field} disabled={isSubmitting}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

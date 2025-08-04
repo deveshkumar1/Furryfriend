@@ -192,7 +192,7 @@ export default function ProfilePage() {
                         <FormItem>
                         <FormLabel>Phone Number</FormLabel>
                         <FormControl>
-                            <Input {...field} disabled={!isEditing || isSubmitting} />
+                            <Input {...field} placeholder="e.g., (555) 123-4567" disabled={!isEditing || isSubmitting} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -206,7 +206,7 @@ export default function ProfilePage() {
                         <FormItem>
                         <FormLabel>Address</FormLabel>
                         <FormControl>
-                            <Input {...field} disabled={!isEditing || isSubmitting} />
+                            <Input {...field} placeholder="e.g., 123 Main St, Anytown, USA" disabled={!isEditing || isSubmitting} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
@@ -219,7 +219,7 @@ export default function ProfilePage() {
                         <FormItem>
                         <FormLabel>About Me</FormLabel>
                         <FormControl>
-                            <Textarea rows={4} className="resize-none" {...field} disabled={!isEditing || isSubmitting} />
+                            <Textarea rows={4} className="resize-none" {...field} placeholder="Tell us a little about you and your pets..." disabled={!isEditing || isSubmitting} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>
