@@ -1,11 +1,11 @@
 
 "use client"; // Needs to be a client component to use hooks
 
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { UserCircle, Edit3, Mail, Phone, MapPin, Loader2, AlertTriangle } from 'lucide-react';
+import { UserCircle, Edit3, Mail, Phone, MapPin, Loader2, AlertTriangle, UploadCloud } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,13 +13,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc, DocumentData } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, useSearchParams } from 'next/navigation';
 import * as z from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { v4 as uuidv4 } from 'uuid';
+import Image from 'next/image';
 
 
 interface UserProfileData extends DocumentData {
@@ -30,6 +33,7 @@ interface UserProfileData extends DocumentData {
   address?: string;
   bio?: string;
   avatarUrl?: string;
+  storagePath?: string; // To keep track of the file in Storage
   dataAiHint?: string;
 }
 
@@ -57,28 +61,26 @@ function ProfilePageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
+  const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string | null>(null);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: { name: '', phone: '', address: '', bio: '' },
   });
 
-  // Determine whose profile to load: the logged-in user's, or one specified in the URL by an admin.
   const profileUserId = searchParams.get('userId') || user?.uid;
 
   useEffect(() => {
-    if (authLoading) {
-      return;
-    }
+    if (authLoading) return;
 
     if (!profileUserId) {
         setIsLoading(false);
         return;
     }
 
-    // Security check: Only admins can view/edit other users' profiles.
     const canViewProfile = authUserProfile?.isAdmin || profileUserId === user?.uid;
-
     if (!canViewProfile) {
       toast({ variant: 'destructive', title: 'Access Denied', description: "You don't have permission to view this profile." });
       router.push('/dashboard');
@@ -110,24 +112,69 @@ function ProfilePageContent() {
 
   }, [profileUserId, user?.uid, authUserProfile, authLoading, router, toast, form]);
 
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setNewAvatarFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewAvatarUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+
   async function onSubmit(values: ProfileFormValues) {
-    if (!profileUserId) {
+    if (!profileUserId || !profileData) {
         toast({ title: "Error", description: "No user ID specified.", variant: "destructive"});
         return;
     }
     setIsSubmitting(true);
+    
+    let avatarUrl = profileData.avatarUrl || '';
+    let storagePath = profileData.storagePath || '';
+
+    try {
+        if (newAvatarFile) {
+            const newStoragePath = `users/${profileUserId}/avatar/avatar-${uuidv4()}`;
+            const newFileRef = ref(storage, newStoragePath);
+            await uploadBytes(newFileRef, newAvatarFile);
+            avatarUrl = await getDownloadURL(newFileRef);
+            storagePath = newStoragePath;
+            
+            if (profileData.storagePath) {
+                const oldFileRef = ref(storage, profileData.storagePath);
+                await deleteObject(oldFileRef).catch(err => {
+                    console.warn("Could not delete old avatar, it might not exist:", err);
+                });
+            }
+        }
+    } catch(error) {
+        console.error("Error uploading avatar: ", error);
+        toast({ title: "Avatar Upload Failed", description: "Could not save the new avatar. Please check your Storage security rules and network connection.", variant: "destructive" });
+        setIsSubmitting(false);
+        return;
+    }
+
     try {
         const userDocRef = doc(db, "users", profileUserId);
-        await updateDoc(userDocRef, {
+        const updatedData = {
             name: values.name,
             phone: values.phone || "",
             address: values.address || "",
             bio: values.bio || "",
-        });
+            avatarUrl,
+            storagePath
+        };
+
+        await updateDoc(userDocRef, updatedData);
+
         toast({ title: "Profile Updated", description: "The profile has been successfully updated." });
         setIsEditing(false);
-        // Manually update state to reflect changes instantly
-        setProfileData(prev => prev ? { ...prev, ...values } : null);
+        setNewAvatarFile(null);
+        setPreviewAvatarUrl(null);
+        setProfileData(prev => prev ? { ...prev, ...updatedData } : null);
 
     } catch (error) {
         console.error("Error updating profile:", error);
@@ -164,6 +211,8 @@ function ProfilePageContent() {
     return (names[0][0] + (names[names.length - 1][0] || '')).toUpperCase();
   };
 
+  const currentAvatarSrc = previewAvatarUrl || profileData.avatarUrl;
+
 
   return (
     <>
@@ -183,7 +232,7 @@ function ProfilePageContent() {
         <CardHeader className="border-b">
           <div className="flex flex-col sm:flex-row items-center gap-6">
             <Avatar className="h-24 w-24 border-4 border-primary/30">
-              <AvatarImage src={profileData.avatarUrl || `https://placehold.co/150x150.png?text=${getInitials(profileData.name)}`} alt={profileData.name} data-ai-hint={profileData.dataAiHint || 'user portrait'} />
+              <AvatarImage src={currentAvatarSrc} alt={profileData.name} />
               <AvatarFallback>{getInitials(profileData.name)}</AvatarFallback>
             </Avatar>
             <div>
@@ -191,7 +240,15 @@ function ProfilePageContent() {
               <CardDescription className="text-md flex items-center gap-2 mt-1">
                 <Mail size={16} className="text-muted-foreground" /> {profileData.email}
               </CardDescription>
-               {isEditing && <Button size="sm" variant="outline" className="mt-3" disabled>Change Avatar (WIP)</Button>}
+               {isEditing && 
+                  <Button size="sm" variant="outline" className="mt-3" asChild>
+                    <label htmlFor="avatar-upload" className="cursor-pointer">
+                      <UploadCloud className="mr-2 h-4 w-4"/>
+                      Change Avatar
+                      <input id="avatar-upload" type="file" className="sr-only" accept="image/*" onChange={handleAvatarChange} disabled={isSubmitting}/>
+                    </label>
+                  </Button>
+               }
             </div>
           </div>
         </CardHeader>
@@ -254,7 +311,7 @@ function ProfilePageContent() {
                 />
               {isEditing && (
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => { setIsEditing(false); form.reset({name: profileData.name, phone: profileData.phone || '', address: profileData.address || '', bio: profileData.bio || ''})}} disabled={isSubmitting}>
+                  <Button type="button" variant="outline" onClick={() => { setIsEditing(false); form.reset({name: profileData.name, phone: profileData.phone || '', address: profileData.address || '', bio: profileData.bio || ''}); setPreviewAvatarUrl(null); setNewAvatarFile(null); }} disabled={isSubmitting}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isSubmitting}>
@@ -277,3 +334,5 @@ export default function ProfilePage() {
         </Suspense>
     )
 }
+
+    
