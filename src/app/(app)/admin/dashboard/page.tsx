@@ -1,17 +1,74 @@
 
+"use client";
+
+import { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Shield, Users, PawPrint, ArrowRight } from 'lucide-react';
+import { Shield, Users, PawPrint, ArrowRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+
+interface Stats {
+  totalUsers: number | null;
+  totalPets: number | null;
+  activeSubscriptions: number; // This will remain static for now
+}
 
 export default function AdminDashboardPage() {
-  // In the future, we'll fetch real data here.
-  const stats = {
-    totalUsers: 125,
-    totalPets: 210,
-    activeSubscriptions: 80,
-  };
+  const [stats, setStats] = useState<Stats>({
+    totalUsers: null,
+    totalPets: null,
+    activeSubscriptions: 80, // Placeholder
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setIsLoading(true);
+      try {
+        const usersCollectionRef = collection(db, 'users');
+        const petsCollectionRef = collection(db, 'pets');
+        
+        const [usersSnapshot, petsSnapshot] = await Promise.all([
+          getDocs(usersCollectionRef),
+          getDocs(petsCollectionRef)
+        ]);
+
+        setStats(prevStats => ({
+          ...prevStats,
+          totalUsers: usersSnapshot.size,
+          totalPets: petsSnapshot.size,
+        }));
+
+      } catch (error) {
+        console.error("Error fetching admin stats:", error);
+        // Handle error, maybe show a toast
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+  
+  const StatCard = ({ title, value, icon: Icon, description }: { title: string; value: number | null; icon: React.ElementType; description: string }) => (
+    <Card className="shadow-lg">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-5 w-5 text-primary" />
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        ) : (
+          <div className="text-2xl font-bold">{value ?? 'N/A'}</div>
+        )}
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <>
@@ -22,27 +79,19 @@ export default function AdminDashboardPage() {
       />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">Registered users on the platform</p>
-          </CardContent>
-        </Card>
+         <StatCard 
+            title="Total Users" 
+            value={stats.totalUsers} 
+            icon={Users}
+            description="Registered users on the platform"
+          />
 
-        <Card className="shadow-lg">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pets</CardTitle>
-            <PawPrint className="h-5 w-5 text-accent" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalPets}</div>
-            <p className="text-xs text-muted-foreground">Pet profiles created by users</p>
-          </CardContent>
-        </Card>
+         <StatCard 
+            title="Total Pets" 
+            value={stats.totalPets} 
+            icon={PawPrint}
+            description="Pet profiles created by users"
+          />
         
         <Card className="shadow-lg">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -51,7 +100,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.activeSubscriptions}</div>
-            <p className="text-xs text-muted-foreground">Users with Pro or Premium plans</p>
+            <p className="text-xs text-muted-foreground">Users with Pro or Premium plans (static)</p>
           </CardContent>
         </Card>
       </div>
