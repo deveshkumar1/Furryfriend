@@ -61,7 +61,7 @@ export default function AppLayout({
           </div>
           <UserNav />
         </header>
-        <main className="flex-1 p-4 md:p-6 lg:p-8">
+        <main className="flex-1 p-4 md:p-6">
           {children}
         </main>
         <footer className="border-t p-4 text-center text-sm text-muted-foreground">

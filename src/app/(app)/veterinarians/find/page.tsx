@@ -122,8 +122,8 @@ export default function FindVeterinarianPage() {
                 <ListFilter className="mr-2 h-4 w-4" /> Filters
             </Button>
           </div>
-          <div className="h-[400px] bg-muted rounded-lg flex items-center justify-center text-muted-foreground overflow-hidden shadow-inner">
-            <Image src="https://placehold.co/800x400.png?text=Veterinarian+Map+Placeholder" alt="Map Placeholder" width={800} height={400} className="object-cover" data-ai-hint="map placeholder"/>
+          <div className="h-[250px] md:h-[400px] bg-muted rounded-lg flex items-center justify-center text-muted-foreground overflow-hidden shadow-inner">
+            <Image src="https://placehold.co/800x400.png?text=Veterinarian+Map+Placeholder" alt="Map Placeholder" width={800} height={400} className="object-cover w-full h-full"/>
           </div>
         </CardContent>
       </Card>

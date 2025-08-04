@@ -1,3 +1,4 @@
+
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -16,10 +17,10 @@ export function PageHeader({ title, description, icon: Icon, action, className }
         {Icon && <Icon className="h-8 w-8 text-primary" />}
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">{title}</h1>
-          {description && <p className="text-muted-foreground">{description}</p>}
+          {description && <p className="text-muted-foreground mt-1">{description}</p>}
         </div>
       </div>
-      {action && <div className="md:ml-auto">{action}</div>}
+      {action && <div className="w-full md:w-auto md:ml-auto">{action}</div>}
     </div>
   );
 }
