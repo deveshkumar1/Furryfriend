@@ -142,7 +142,8 @@ export default function EditPetPage() {
     try {
         if (newImageFile) {
             // Upload the new image first
-            const newStoragePath = `users/${petData.userId}/pets/${petId}/profile-${uuidv4()}`;
+            // **FIX**: Use the current user's UID (the admin's) for the path to ensure permissions.
+            const newStoragePath = `users/${user.uid}/pets/${petId}/profile-${uuidv4()}`;
             const newFileRef = ref(storage, newStoragePath);
             await uploadBytes(newFileRef, newImageFile);
             imageUrl = await getDownloadURL(newFileRef);
@@ -159,7 +160,7 @@ export default function EditPetPage() {
         }
     } catch(error) {
         console.error("Error uploading image: ", error);
-        toast({ title: "Image Upload Failed", description: "Could not save the new profile picture. Please try again.", variant: "destructive" });
+        toast({ title: "Image Upload Failed", description: "Could not save the new profile picture. Please check your Storage security rules and network connection.", variant: "destructive" });
         setIsSubmitting(false);
         return;
     }
