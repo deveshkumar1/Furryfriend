@@ -80,7 +80,7 @@ export default function PetsPage() {
       console.log(`Pets loaded successfully for user: ${user.uid} (Count: ${petsData.length})`, petsData);
     }, (err: any) => { // Explicitly type err as any for broader error object access
       console.error("Firestore error in onSnapshot (PetsPage):", err); 
-      setError(`Error loading pets. Firestore error: ${err.name} - ${err.message}. Check browser console for full details (may include index creation link or permission issues).`);
+      setError(`Firestore error: ${err.message}. This is likely a permissions issue with your Firestore Security Rules. Please check the browser console for a link to create the required index if one is missing.`);
       setIsLoading(false);
     });
 
@@ -113,6 +113,28 @@ export default function PetsPage() {
     );
   }
 
+  if (error) {
+     return (
+      <>
+        <PageHeader
+          title="Error"
+          description="Could not load your pets."
+          icon={AlertTriangle}
+        />
+        <Card className="shadow-lg border-destructive">
+          <CardHeader className="text-center">
+            <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
+            <CardTitle className="text-destructive">Error Loading Pets</CardTitle>
+          </CardHeader>
+           <CardContent className="text-center">
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
+          </CardContent>
+        </Card>
+      </>
+    );
+  }
+
   if (!user && !authLoading) {
      return (
       <>
@@ -134,30 +156,6 @@ export default function PetsPage() {
       </>
     );
   }
-
-
-  if (error) {
-     return (
-      <>
-        <PageHeader
-          title="Error"
-          description="Could not load your pets."
-          icon={AlertTriangle}
-        />
-        <Card className="text-center py-12 shadow-lg border-destructive">
-          <CardHeader>
-            <AlertTriangle className="mx-auto h-12 w-12 text-destructive mb-4" />
-            <CardTitle className="text-destructive">Error Loading Pets</CardTitle>
-            <CardDescription>{error}</CardDescription> 
-          </CardHeader>
-           <CardContent>
-            <Button onClick={() => router.push('/dashboard')}>Go to Dashboard</Button>
-          </CardContent>
-        </Card>
-      </>
-    );
-  }
-
 
   return (
     <>

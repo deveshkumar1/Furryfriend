@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -16,7 +16,8 @@ import {
   MapPin,
   CreditCard,
   Circle,
-  Loader2
+  Loader2,
+  LogOut,
 } from 'lucide-react';
 import {
   SidebarMenu,
@@ -25,13 +26,17 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
+  SidebarFooter,
 } from '@/components/ui/sidebar';
 import { Badge } from '@/components/ui/badge';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { useAuth } from '@/context/AuthContext';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, DocumentData, orderBy } from 'firebase/firestore';
 import { useState, useEffect, useMemo } from 'react';
+import { signOut } from 'firebase/auth';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '../ui/button';
 
 export interface NavItem {
   title: string;
@@ -80,9 +85,30 @@ const getBaseNavItems = (): NavItem[] => [
 
 export function MainNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { toast } = useToast();
   const { user } = useAuth();
   const [pets, setPets] = useState<Pet[]>([]);
   const [isLoadingPets, setIsLoadingPets] = useState(true);
+  
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged Out",
+        description: "You have been successfully logged out.",
+      });
+      router.push('/'); 
+    } catch (error) {
+      console.error("Logout error:", error);
+      toast({
+        title: "Logout Failed",
+        description: "Could not log out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   useEffect(() => {
     if (!user) {
@@ -107,7 +133,6 @@ export function MainNav() {
   }, [user]);
 
   const navItems = useMemo(() => {
-    // Create a fresh copy of the base items each time
     const newNavItems = getBaseNavItems(); 
     
     const myPetsItem = newNavItems.find(item => item.title === 'My Pets');
@@ -120,6 +145,9 @@ export function MainNav() {
         }));
         
         let petChildren: NavItem[] = [];
+        
+        // The main link to the grid of all pets
+        petChildren.push({ title: "All Pets", href: "/pets", icon: PawPrint });
 
         if (isLoadingPets) {
             petChildren.push({ title: "Loading pets...", href: "#", icon: Loader2, disabled: true });
@@ -130,13 +158,16 @@ export function MainNav() {
         myPetsItem.children = petChildren;
     }
     
-    // Filter out the items we don't want
-    return newNavItems;
+    // Filter out items you want to remove completely from the sidebar
+    return newNavItems.filter(item => 
+        item.href !== '/pets/vaccinations' && 
+        item.href !== '/pets/medications'
+    );
   }, [pets, isLoadingPets]);
 
   const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
-    const isParentOfActive = item.children && item.children.some(child => pathname.startsWith(child.href));
-    const isActive = (item.href === pathname || (item.href !== '/dashboard' && pathname.startsWith(item.href))) || isParentOfActive;
+    const isParentOfActive = item.children && item.children.some(child => pathname.startsWith(child.href) && child.href !== '/pets');
+    const isActive = (item.href === pathname || (item.href !== '/dashboard' && item.href !== '/pets' && pathname.startsWith(item.href))) || isParentOfActive;
     
     const isDisabled = item.disabled;
     const tooltipContent = item.title;
@@ -148,31 +179,22 @@ export function MainNav() {
 
     if (item.children && item.children.length > 0) {
       return (
-        <Accordion type="single" collapsible className="w-full" key={item.title} defaultValue={isParentOfActive ? item.title : undefined}>
+        <Accordion type="single" collapsible className="w-full" key={item.title} defaultValue={isParentOfActive || item.href === '/pets' && pathname.startsWith('/pets') ? item.title : undefined}>
           <AccordionItem value={item.title} className="border-none">
-            <div className="flex items-center rounded-md pr-2 bg-transparent">
-              <Link
-                href={item.href}
+             <AccordionTrigger
                 className={cn(
                   "flex items-center w-full justify-start gap-2 rounded-md p-2 text-left text-sm hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring active:bg-sidebar-accent active:text-sidebar-accent-foreground flex-grow",
                   isActive && "bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary/90 hover:text-sidebar-primary-foreground",
-                  isDisabled && "opacity-50 cursor-not-allowed",
-                  "group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2"
+                   "group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2",
+                  '[&[data-state=open]>svg:last-child]:-rotate-180'
                 )}
-                title={tooltipContent}
-                onClick={(e) => { if (isDisabled) e.preventDefault(); }}
               >
-                  {iconToRender}
-                  <span className="truncate">{item.title}</span>
-                  {item.badge && (<Badge variant="secondary" className="ml-auto">{item.badge}</Badge>)}
-              </Link>
-              <AccordionTrigger
-                className={cn(
-                  "p-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground rounded-md [&>svg:last-child]:ml-auto",
-                  isActive && "text-sidebar-primary-foreground hover:text-sidebar-primary-foreground"
-                )}
-              />
-            </div>
+               <Link href={item.href} className="flex items-center gap-2" title={tooltipContent}>
+                 {iconToRender}
+                 <span className="truncate">{item.title}</span>
+               </Link>
+               {item.badge && (<Badge variant="secondary" className="ml-auto">{item.badge}</Badge>)}
+              </AccordionTrigger>
             <AccordionContent className="pb-0">
               <SidebarMenuSub className="mx-0 pl-4 pr-0 py-1 border-l-2 border-sidebar-border/50">
                 {item.children.map((child) => (
@@ -238,14 +260,22 @@ export function MainNav() {
 
 
   return (
-    <nav className="flex flex-col gap-1 px-2 py-4">
-      <SidebarMenu>
-        {navItems.map((item) => (
-          <SidebarMenuItem key={item.title}>
-            {renderNavItem(item)}
-          </SidebarMenuItem>
-        ))}
-      </SidebarMenu>
-    </nav>
+    <div className="flex flex-col h-full">
+      <nav className="flex-1 flex flex-col gap-1 px-2 py-4">
+        <SidebarMenu>
+          {navItems.map((item) => (
+            <SidebarMenuItem key={item.title}>
+              {renderNavItem(item)}
+            </SidebarMenuItem>
+          ))}
+        </SidebarMenu>
+      </nav>
+       <SidebarFooter className="mt-auto border-t border-sidebar-border">
+          <Button variant="ghost" className="w-full justify-start text-red-500 hover:bg-red-500/10 hover:text-red-500" onClick={handleLogout}>
+              <LogOut className="mr-2 h-5 w-5" />
+              <span className="truncate">Sign Out</span>
+          </Button>
+      </SidebarFooter>
+    </div>
   );
 }
