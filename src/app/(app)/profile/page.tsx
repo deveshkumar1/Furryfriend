@@ -138,11 +138,10 @@ function ProfilePageContent() {
 
     try {
         if (newAvatarFile) {
-            // **FIX:** The uploader's ID (user.uid) should be used to create the path,
-            // but the folder structure still references the profile owner's ID (profileUserId)
-            // for organization. The security rules will allow this write because the uploader
-            // is an admin.
-            const newStoragePath = `users/${profileUserId}/avatar/avatar-${uuidv4()}`;
+            // **FIX:** The storage path MUST be constructed with the currently authenticated user's UID (`user.uid`),
+            // which in the admin's case is the admin's own ID. This guarantees write permissions.
+            // The file is still associated with the correct profile via its `avatarUrl` field in Firestore.
+            const newStoragePath = `users/${user.uid}/avatar/avatar-${uuidv4()}`;
             const newFileRef = ref(storage, newStoragePath);
             await uploadBytes(newFileRef, newAvatarFile);
             avatarUrl = await getDownloadURL(newFileRef);
@@ -339,5 +338,7 @@ export default function ProfilePage() {
         </Suspense>
     )
 }
+
+    
 
     
