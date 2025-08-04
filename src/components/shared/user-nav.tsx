@@ -74,7 +74,7 @@ export function UserNav() {
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
           <Avatar className="h-10 w-10 border-2 border-primary/50">
             {/* Assuming userProfile might have an avatarUrl, otherwise fallback */}
-            <AvatarImage src={userProfile?.avatarUrl || 'https://placehold.co/100x100.png'} alt={userProfile?.name || user.email || "User"} data-ai-hint="user avatar" />
+            <AvatarImage src={userProfile?.avatarUrl || ''} alt={userProfile?.name || user.email || "User"} data-ai-hint="user avatar" />
             <AvatarFallback>{getInitials(userProfile?.name)}</AvatarFallback>
           </Avatar>
         </Button>

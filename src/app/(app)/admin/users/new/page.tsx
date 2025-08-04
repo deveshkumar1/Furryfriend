@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { UserPlus, Loader2 } from 'lucide-react';
+import { UserPlus, Loader2, AlertTriangle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
@@ -47,45 +47,14 @@ export default function NewUserPage() {
 
   async function onSubmit(values: NewUserFormValues) {
     setIsLoading(true);
-    setError(null);
-
-    // This uses the standard client-side SDK.
-    // NOTE: This will temporarily sign in the admin as the new user, which isn't ideal
-    // but is the only way to create a user from the client without a backend function.
-    // The admin will be redirected and can sign back in.
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        name: values.name,
-        email: values.email,
-        isAdmin: values.isAdmin,
-        phone: '', // Add the phone field with a default empty value
-        createdAt: serverTimestamp(),
-      });
-
-      toast({
-        title: "User Created Successfully",
-        description: `Account for ${values.name} has been created. You may need to sign in again.`,
-      });
-      
-      // Redirect to the user list after creation.
-      router.push('/admin/users');
-
-    } catch (err: any) {
-      console.error("Error creating user:", err);
-      let message = "An unexpected error occurred. Please try again.";
-      if (err.code === 'auth/email-already-in-use') {
-        message = "This email address is already registered.";
-      } else if (err.code === 'auth/weak-password') {
-        message = "The password is too weak. Please use at least 8 characters.";
-      }
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
+    setError("Admin user creation via the client is disabled to prevent session conflicts. A backend function is required for this feature.");
+    toast({
+        title: "Feature Disabled",
+        description: "This form is currently not functional. Backend implementation is pending.",
+        variant: "destructive"
+    });
+    setIsLoading(false);
+    return;
   }
 
   return (
@@ -103,6 +72,13 @@ export default function NewUserPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Feature Currently Disabled</AlertTitle>
+              <AlertDescription>
+                  Creating users as an admin from the client-side is disabled to prevent the admin from being logged out. This functionality requires a secure backend implementation (e.g., a Cloud Function or Genkit Flow) which is not yet in place.
+              </AlertDescription>
+          </Alert>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <FormField
@@ -112,7 +88,7 @@ export default function NewUserPage() {
                   <FormItem>
                     <FormLabel>Full Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., Jane Doe" {...field} disabled={isLoading} />
+                      <Input placeholder="e.g., Jane Doe" {...field} disabled={true} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -125,7 +101,7 @@ export default function NewUserPage() {
                   <FormItem>
                     <FormLabel>Email Address</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="user@example.com" {...field} disabled={isLoading} />
+                      <Input type="email" placeholder="user@example.com" {...field} disabled={true} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -138,7 +114,7 @@ export default function NewUserPage() {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="Set an initial password" {...field} disabled={isLoading} />
+                      <Input type="password" placeholder="Set an initial password" {...field} disabled={true} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -157,7 +133,7 @@ export default function NewUserPage() {
                       <Switch
                         checked={field.value}
                         onCheckedChange={field.onChange}
-                        disabled={isLoading}
+                        disabled={true}
                       />
                     </FormControl>
                   </FormItem>
@@ -175,7 +151,7 @@ export default function NewUserPage() {
                 <Button type="button" variant="outline" onClick={() => router.back()} disabled={isLoading}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isLoading}>
+                <Button type="submit" disabled={true}>
                   {isLoading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
