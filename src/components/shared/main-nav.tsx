@@ -51,8 +51,8 @@ interface Pet extends DocumentData {
   name: string;
 }
 
-
-const baseNavItems: NavItem[] = [
+// Base navigation structure without the items we want to remove
+const getBaseNavItems = (): NavItem[] => [
   { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   {
     title: 'My Pets',
@@ -124,16 +124,19 @@ export function MainNav() {
   }, [user]);
 
   const navItems = useMemo(() => {
-    const myPetsItem = baseNavItems.find(item => item.title === 'My Pets');
+    // Create a fresh copy of the base items each time
+    const newNavItems = getBaseNavItems(); 
+    
+    const myPetsItem = newNavItems.find(item => item.title === 'My Pets');
 
-    if (myPetsItem && myPetsItem.children) {
+    if (myPetsItem) {
         const petNavItems: NavItem[] = pets.map(pet => ({
             title: pet.name,
             href: `/pets/${pet.id}`,
-            icon: Circle, // Using Circle icon for individual pets for a subtle look
+            icon: Circle,
         }));
-
-        const petChildren = [myPetsItem.children[0]]; // Start with "All Pets"
+        
+        let petChildren: NavItem[] = [{ title: 'All Pets', href: '/pets', icon: PawPrint }];
 
         if (isLoadingPets) {
             petChildren.push({ title: "Loading pets...", href: "#", icon: Loader2, disabled: true });
@@ -144,11 +147,11 @@ export function MainNav() {
         myPetsItem.children = petChildren;
     }
     
-    return baseNavItems.map(item => item.title === 'My Pets' && myPetsItem ? myPetsItem : item);
+    // Filter out the items we don't want
+    return newNavItems;
   }, [pets, isLoadingPets]);
 
   const renderNavItem = (item: NavItem, isSubItem: boolean = false) => {
-    // For My Pets accordion, we check if any child is active
     const isParentActive = item.children && item.children.some(child => pathname === child.href || pathname.startsWith(child.href + '/'));
     const isActive = (pathname === item.href || (item.href !== '/dashboard' && item.href !== '/' && pathname.startsWith(item.href))) || isParentActive;
 
