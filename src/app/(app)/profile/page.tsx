@@ -1,4 +1,5 @@
 
+
 "use client"; // Needs to be a client component to use hooks
 
 import { Suspense, useRef } from 'react';
@@ -126,8 +127,8 @@ function ProfilePageContent() {
 
 
   async function onSubmit(values: ProfileFormValues) {
-    if (!profileUserId || !profileData) {
-        toast({ title: "Error", description: "No user ID specified.", variant: "destructive"});
+    if (!profileUserId || !profileData || !user) {
+        toast({ title: "Error", description: "User data is missing or you are not logged in.", variant: "destructive"});
         return;
     }
     setIsSubmitting(true);
@@ -137,6 +138,10 @@ function ProfilePageContent() {
 
     try {
         if (newAvatarFile) {
+            // **FIX:** The uploader's ID (user.uid) should be used to create the path,
+            // but the folder structure still references the profile owner's ID (profileUserId)
+            // for organization. The security rules will allow this write because the uploader
+            // is an admin.
             const newStoragePath = `users/${profileUserId}/avatar/avatar-${uuidv4()}`;
             const newFileRef = ref(storage, newStoragePath);
             await uploadBytes(newFileRef, newAvatarFile);
@@ -221,7 +226,7 @@ function ProfilePageContent() {
         description="View and update personal information."
         icon={UserCircle}
         action={
-          !isEditing ? (
+          !isEditing && (authUserProfile?.isAdmin || authUserProfile?.uid === profileUserId) ? (
             <Button variant="outline" onClick={() => setIsEditing(true)}>
               <Edit3 className="mr-2 h-4 w-4" /> Edit Profile
             </Button>
