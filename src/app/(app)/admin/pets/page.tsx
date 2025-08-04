@@ -10,8 +10,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { PawPrint, Edit3, Trash2, Loader2, AlertTriangle, User } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, orderBy, DocumentData } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, DocumentData, getDocs, where } from 'firebase/firestore';
 import Image from 'next/image';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 
 interface Pet extends DocumentData {
@@ -22,10 +23,24 @@ interface Pet extends DocumentData {
   imageUrl?: string;
   dataAiHint?: string;
   userId: string;
-  // We should fetch the owner's name separately or denormalize it
   ownerName?: string; 
   ownerEmail?: string;
+  ownerAvatarUrl?: string;
 }
+
+interface UserProfile extends DocumentData {
+    uid: string;
+    name: string;
+    email: string;
+    avatarUrl?: string;
+}
+
+const getInitials = (name?: string) => {
+    if (!name) return 'U';
+    const names = name.split(' ');
+    if (names.length === 1) return names[0][0]?.toUpperCase();
+    return (names[0][0] + (names[names.length - 1][0] || '')).toUpperCase();
+};
 
 export default function ManagePetsPage() {
   const [pets, setPets] = useState<Pet[]>([]);
@@ -36,21 +51,52 @@ export default function ManagePetsPage() {
     setIsLoading(true);
     setError(null);
 
-    // Query to get all pets, ordered by creation time
-    const q = query(
+    const petsQuery = query(
       collection(db, "pets"),
       orderBy("createdAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      // In a real app, we'd fetch owner details for each pet here.
-      // For now, we'll just display the userId.
-      const recordsData: Pet[] = querySnapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      } as Pet));
-      setPets(recordsData);
-      setIsLoading(false);
+    const unsubscribe = onSnapshot(petsQuery, async (petsSnapshot) => {
+      if (petsSnapshot.empty) {
+        setPets([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      const petRecords = petsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pet));
+      const userIds = [...new Set(petRecords.map(pet => pet.userId))];
+
+      // Fetch user data for all unique user IDs
+      try {
+        const usersQuery = query(collection(db, "users"), where("uid", "in", userIds));
+        const usersSnapshot = await getDocs(usersQuery);
+        const usersMap = new Map<string, UserProfile>();
+        usersSnapshot.forEach(doc => {
+            const userData = doc.data() as UserProfile;
+            usersMap.set(userData.uid, userData);
+        });
+
+        // Combine pet data with owner data
+        const enrichedPets = petRecords.map(pet => {
+          const owner = usersMap.get(pet.userId);
+          return {
+            ...pet,
+            ownerName: owner?.name || 'Unknown User',
+            ownerEmail: owner?.email || 'N/A',
+            ownerAvatarUrl: owner?.avatarUrl,
+          };
+        });
+
+        setPets(enrichedPets);
+      } catch (err: any) {
+         console.error("Error fetching user details for pets: ", err);
+         // Fallback: Show pets with only user IDs if user fetching fails
+         setPets(petRecords);
+         setError("Failed to load full owner details for pets. Displaying basic info.");
+      } finally {
+         setIsLoading(false);
+      }
+      
     }, (err) => {
       console.error("Error fetching ALL pet records: ", err);
       setError("Failed to load pet records. Check browser console for specific Firestore error.");
@@ -92,7 +138,7 @@ export default function ManagePetsPage() {
                 <TableRow>
                   <TableHead>Pet</TableHead>
                   <TableHead>Species & Breed</TableHead>
-                  <TableHead>Owner ID</TableHead>
+                  <TableHead>Owner</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -111,8 +157,14 @@ export default function ManagePetsPage() {
                     </TableCell>
                     <TableCell>
                         <div className="flex items-center gap-2">
-                           <User className="h-4 w-4 text-muted-foreground"/>
-                           <span className="text-xs font-mono">{pet.userId}</span>
+                           <Avatar className="h-8 w-8">
+                                <AvatarImage src={pet.ownerAvatarUrl} />
+                                <AvatarFallback>{getInitials(pet.ownerName)}</AvatarFallback>
+                           </Avatar>
+                           <div>
+                                <div className="font-medium text-sm">{pet.ownerName}</div>
+                                <div className="text-xs text-muted-foreground">{pet.ownerEmail}</div>
+                           </div>
                         </div>
                     </TableCell>
                     <TableCell className="text-right">
