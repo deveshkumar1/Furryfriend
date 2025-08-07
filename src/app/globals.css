@@ -1,0 +1,107 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: 220 17% 96%; /* #F3F4F6 warm gray */
+    --foreground: 215 28% 17%; /* #1F2937 charcoal */
+
+    --card: 0 0% 100%; /* white */
+    --card-foreground: 215 28% 17%; /* charcoal */
+
+    --popover: 0 0% 100%; /* white */
+    --popover-foreground: 215 28% 17%; /* charcoal */
+
+    --primary: 258 90% 66%; /* #8B5CF6 rich purple */
+    --primary-foreground: 0 0% 98%; /* light for contrast */
+
+    --secondary: 220 14% 90%; /* #E5E7EB soft lavender */
+    --secondary-foreground: 215 28% 17%; /* charcoal for contrast */
+
+    --muted: 220 17% 96%; /* warm gray, same as background */
+    --muted-foreground: 215 14% 47%; /* #6B7280 dark gray */
+
+    --accent: 159 80% 40%; /* #10B981 mint green */
+    --accent-foreground: 0 0% 98%; /* light for contrast */
+
+    --destructive: 0 80% 65%; /* #F87171 coral (adjusted) */
+    --destructive-foreground: 0 0% 98%; /* light for contrast */
+
+    --border: 220 13% 88%; /* slightly darker lavender/gray */
+    --input: 220 13% 88%; /* same as border */
+    --ring: 258 90% 66%; /* primary purple */
+
+    --radius: 0.75rem; /* more rounded modern feel */
+
+    --chart-1: 258 90% 66%; /* primary */
+    --chart-2: 159 80% 40%; /* accent */
+    --chart-3: 220 14% 70%; /* lighter lavender */
+    --chart-4: 215 28% 40%; /* darker charcoal */
+    --chart-5: 0 80% 70%; /* lighter coral */
+
+    /* Sidebar specific colors for a dark sidebar theme */
+    --sidebar-background: 215 28% 17%; /* #1F2937 charcoal */
+    --sidebar-foreground: 220 14% 80%; /* Light lavender/gray for text */
+    --sidebar-primary: 258 90% 66%; /* Rich purple for active items/highlights */
+    --sidebar-primary-foreground: 0 0% 98%; /* White */
+    --sidebar-accent: 258 90% 70%; /* Lighter purple for hover/focus */
+    --sidebar-accent-foreground: 0 0% 98%; /* White */
+    --sidebar-border: 215 28% 25%; /* Slightly lighter than sidebar background */
+    --sidebar-ring: 258 90% 66%; /* Primary purple for focus rings */
+  }
+
+  .dark {
+    --background: 215 28% 10%; /* Darker charcoal */
+    --foreground: 220 14% 85%; /* Light lavender/gray */
+
+    --card: 215 28% 12%; /* Slightly lighter dark */
+    --card-foreground: 220 14% 85%;
+
+    --popover: 215 28% 12%;
+    --popover-foreground: 220 14% 85%;
+
+    --primary: 258 85% 70%; /* Brighter purple for dark mode */
+    --primary-foreground: 215 28% 10%; /* Dark for contrast on bright purple */
+
+    --secondary: 215 28% 20%; /* Darker lavender/gray */
+    --secondary-foreground: 220 14% 85%;
+
+    --muted: 215 28% 20%;
+    --muted-foreground: 215 14% 60%; /* Lighter muted text */
+
+    --accent: 159 75% 50%; /* Brighter mint green for dark mode */
+    --accent-foreground: 215 28% 10%;
+
+    --destructive: 0 75% 60%; /* Brighter coral for dark mode */
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 215 28% 25%;
+    --input: 215 28% 25%;
+    --ring: 258 85% 70%; /* primary for dark mode */
+
+    /* Sidebar remains dark, possibly with minor adjustments if needed */
+    --sidebar-background: 215 28% 13%; /* Slightly darker for depth */
+    --sidebar-foreground: 220 14% 75%;
+    --sidebar-primary: 258 85% 70%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 258 85% 75%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 215 28% 22%;
+    --sidebar-ring: 258 85% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1,"calt" 1;
+  }
+}
