@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  output: 'standalone',
   webpack: (config, { isServer }) => {
     // Ignore optional dependencies that might cause build issues
     config.resolve.fallback = {

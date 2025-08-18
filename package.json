@@ -11,8 +11,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "migrate:users": "tsx src/scripts/add-phone-to-users.ts",
-    "export": "next build && next export",
-    "firebase:deploy": "npm run export && firebase deploy"
+    "firebase:deploy": "npm run build && firebase deploy"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.8.0",
