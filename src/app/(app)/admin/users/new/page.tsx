@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { UserPlus, Loader2, AlertTriangle } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { createFirebaseUser } from '@/ai/flows/create-user-flow';
+import { createUserServerAction } from '@/lib/actions/create-user';
 
 const newUserFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
@@ -47,10 +47,10 @@ export default function NewUserPage() {
     setError(null);
 
     try {
-      const result = await createFirebaseUser(values);
+      const result = await createUserServerAction(values);
 
-      if (result.error) {
-        throw new Error(result.error);
+      if (!result.success) {
+        throw new Error(result.error || 'Unknown error occurred');
       }
       
       toast({
@@ -61,11 +61,7 @@ export default function NewUserPage() {
 
     } catch (err: any) {
       console.error("Error creating user from admin:", err);
-      let errorMessage = "An unexpected error occurred.";
-      if (err.message) {
-         // Use the error message from the flow
-        errorMessage = err.message;
-      }
+      const errorMessage = err.message || "An unexpected error occurred.";
       setError(errorMessage);
       toast({
         title: "Creation Failed",
