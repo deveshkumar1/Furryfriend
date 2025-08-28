@@ -1,19 +1,19 @@
-"use client";
-
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings, UserCircle, Bell, Database, Download, Upload, Trash2, Palette, Lock } from 'lucide-react';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+
 
 export default function SettingsPage() {
   const { user, userProfile } = useAuth ? useAuth() : { user: null, userProfile: null };
@@ -22,15 +22,22 @@ export default function SettingsPage() {
   const [email] = useState(userProfile?.email || '');
   const [saving, setSaving] = useState(false);
 
+  // Optionally, load userProfile on mount if not present
+  // useEffect(() => { ... }, [userProfile]);
+
   const handleSaveProfile = async () => {
     if (!user) {
       toast({ title: 'Not logged in', description: 'You must be logged in to update your profile.', variant: 'destructive' });
       return;
+    "use client";
     }
     setSaving(true);
     try {
       const userDocRef = doc(db, 'users', user.uid);
       await updateDoc(userDocRef, { name });
+      "use client";
+      "use client";
+      "use client";
       toast({ title: 'Profile Saved', description: 'Your profile changes have been saved.' });
     } catch (err) {
       toast({ title: 'Save Failed', description: 'Could not save profile changes.', variant: 'destructive' });

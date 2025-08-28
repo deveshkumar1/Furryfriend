@@ -1,7 +1,12 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { GoogleMap, Marker, useJsApiLoader, InfoWindow } from '@react-google-maps/api';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -20,71 +25,81 @@ interface Vet {
   services: string[];
   imageUrl?: string;
   dataAiHint?: string;
+  lat?: number;
+  lng?: number;
 }
 
-const allMockVets: Vet[] = [
-    { id: "1", name: "City Animal Hospital", address: "789 Pine St, Anytown, USA 90210", distance: "1.2 miles", rating: 4.5, services: ["General Care", "Surgery", "Dental"], imageUrl: 'https://placehold.co/200x150.png?text=City+Animal+Hospital', dataAiHint: 'animal hospital building' },
-    { id: "2", name: "Suburb Veterinary Clinic", address: "101 Maple Dr, Suburbia, USA 90211", distance: "3.5 miles", rating: 4.8, services: ["Wellness Exams", "Vaccinations"], imageUrl: 'https://placehold.co/200x150.png?text=Suburb+Vet+Clinic', dataAiHint: 'veterinary clinic exterior' },
-    { id: "3", name: "Green Valley Vets", address: "45 Green Valley Rd, Countryside, USA 12345", distance: "5.0 miles", rating: 4.2, services: ["Holistic Care", "Acupuncture", "General Care"], imageUrl: 'https://placehold.co/200x150.png?text=Green+Valley+Vets', dataAiHint: 'rural vet clinic' },
-    { id: "4", name: "Pet Emergency Center", address: "123 Emergency Ln, Anytown, USA 90210", distance: "0.5 miles", rating: 4.9, services: ["Emergency Care", "Critical Care", "Surgery"], imageUrl: 'https://placehold.co/200x150.png?text=Pet+Emergency', dataAiHint: 'emergency vet sign' },
-];
+const allMockVets: Vet[] = [];
 
+
+const mapContainerStyle = {
+  width: '100%',
+  height: '400px',
+};
+
+const defaultCenter = { lat: 34.0701, lng: -118.4441 };
 
 export default function FindVeterinarianPage() {
+  // Google Maps API loader
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+  });
+
+  const [selectedVet, setSelectedVet] = useState<Vet | null>(null);
+  const { user } = useAuth ? useAuth() : { user: null };
+  const { toast } = useToast();
   const [locationSearch, setLocationSearch] = useState('');
   const [servicesSearch, setServicesSearch] = useState('');
-  const [displayedVets, setDisplayedVets] = useState<Vet[]>(allMockVets);
-
-  const handleSearch = () => {
-    console.log('[FindVetPage] handleSearch triggered.');
-    console.log('[FindVetPage] Initial allMockVets:', JSON.stringify(allMockVets.map(v => ({name: v.name, address: v.address, services: v.services}))));
-    console.log('[FindVetPage] Current locationSearch (raw input):', `"${locationSearch}"`);
-    console.log('[FindVetPage] Current servicesSearch (raw input):', `"${servicesSearch}"`);
-
-    let filtered = [...allMockVets]; 
-
-    const cleanLocationSearch = locationSearch.trim().toLowerCase();
-    const cleanServicesSearch = servicesSearch.trim().toLowerCase();
-
-    console.log('[FindVetPage] Cleaned locationSearch for filtering:', `"${cleanLocationSearch}"`);
-    console.log('[FindVetPage] Cleaned servicesSearch for filtering:', `"${cleanServicesSearch}"`);
-
-    if (cleanLocationSearch) {
-      filtered = filtered.filter(vet =>
-        vet.address.toLowerCase().includes(cleanLocationSearch) ||
-        vet.name.toLowerCase().includes(cleanLocationSearch)
-      );
-      console.log(`[FindVetPage] After location/name filter (term: "${cleanLocationSearch}"):`, filtered.map(v => v.name));
+  const [displayedVets, setDisplayedVets] = useState<Vet[]>([]);
+  const [loadingVets, setLoadingVets] = useState(false);
+  const [addingVetId, setAddingVetId] = useState<string | null>(null);
+  // Add vet to user's saved vets in Firestore
+  const handleAddMyVet = async (vet: Vet) => {
+    if (!user) {
+      toast({ title: 'Not logged in', description: 'Please log in to add a vet.', variant: 'destructive' });
+      return;
     }
-
-    if (cleanServicesSearch) {
-      filtered = filtered.filter(vet =>
-        vet.services.some(service =>
-          service.toLowerCase().includes(cleanServicesSearch)
-        )
-      );
-      console.log(`[FindVetPage] After services filter (term: "${cleanServicesSearch}"):`, filtered.map(v => v.name));
+    setAddingVetId(vet.id);
+    try {
+      const vetRef = doc(db, 'users', user.uid, 'savedVets', vet.id);
+      await setDoc(vetRef, {
+        vetId: vet.id,
+        name: vet.name,
+        address: vet.address,
+        rating: vet.rating,
+        services: vet.services,
+        imageUrl: vet.imageUrl || '',
+        addedAt: new Date().toISOString(),
+      });
+      toast({ title: 'Vet Added', description: `${vet.name} has been added to your vets.` });
+    } catch (err) {
+      toast({ title: 'Error', description: 'Could not add vet. Please try again.', variant: 'destructive' });
+    } finally {
+      setAddingVetId(null);
     }
+  };
 
-    console.log('[FindVetPage] Final filteredVets count to set:', filtered.length);
-    console.log('[FindVetPage] Final filteredVets names:', filtered.map(v => v.name));
-    setDisplayedVets(filtered);
+  const handleSearch = async () => {
+    setLoadingVets(true);
+    setDisplayedVets([]);
+    try {
+      const res = await fetch(`/api/vets?location=${encodeURIComponent(locationSearch)}`);
+      if (!res.ok) throw new Error('Failed to fetch vets');
+      const data = await res.json();
+      setDisplayedVets(data.vets || []);
+    } catch (err) {
+      toast({ title: 'Error', description: 'Could not fetch veterinarians. Try a different location.', variant: 'destructive' });
+    } finally {
+      setLoadingVets(false);
+    }
   };
   
+  // Optionally, clear results if search is cleared
   useEffect(() => {
-    // This useEffect will reset to all vets if both search fields are cleared.
-    const cleanLocationSearch = locationSearch.trim();
-    const cleanServicesSearch = servicesSearch.trim();
-
-    if (!cleanLocationSearch && !cleanServicesSearch) {
-      // Only reset if both are truly empty, and not on initial mount if they start empty.
-      // Check if displayedVets is not already allMockVets to avoid unnecessary sets.
-      if (displayedVets.length !== allMockVets.length || !displayedVets.every((v, i) => v.id === allMockVets[i].id)) {
-        console.log('[FindVetPage] useEffect: Both search fields empty, resetting to all vets.');
-        setDisplayedVets([...allMockVets]);
-      }
+    if (!locationSearch.trim()) {
+      setDisplayedVets([]);
     }
-  }, [locationSearch, servicesSearch, displayedVets]);
+  }, [locationSearch]);
 
 
   return (
@@ -123,7 +138,37 @@ export default function FindVeterinarianPage() {
             </Button>
           </div>
           <div className="h-[250px] md:h-[400px] bg-muted rounded-lg flex items-center justify-center text-muted-foreground overflow-hidden shadow-inner">
-            <Image src="https://placehold.co/800x400.png?text=Veterinarian+Map+Placeholder" alt="Map Placeholder" width={800} height={400} className="object-cover w-full h-full"/>
+            {isLoaded ? (
+              <GoogleMap
+                mapContainerStyle={mapContainerStyle}
+                center={defaultCenter}
+                zoom={13}
+              >
+                {displayedVets.filter(v => v.lat && v.lng).map(vet => (
+                  <Marker
+                    key={vet.id}
+                    position={{ lat: vet.lat!, lng: vet.lng! }}
+                    onClick={() => setSelectedVet(vet)}
+                  />
+                ))}
+                {selectedVet && selectedVet.lat && selectedVet.lng && (
+                  <InfoWindow
+                    position={{ lat: selectedVet.lat, lng: selectedVet.lng }}
+                    onCloseClick={() => setSelectedVet(null)}
+                  >
+                    <div className="min-w-[180px]">
+                      <h3 className="font-semibold text-primary mb-1">{selectedVet.name}</h3>
+                      <p className="text-xs text-muted-foreground mb-1">{selectedVet.address}</p>
+                      <Button size="sm" onClick={() => { handleAddMyVet(selectedVet); setSelectedVet(null); }}>
+                        Add as My Vet
+                      </Button>
+                    </div>
+                  </InfoWindow>
+                )}
+              </GoogleMap>
+            ) : (
+              <span>Loading map...</span>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -136,33 +181,39 @@ export default function FindVeterinarianPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {displayedVets.length > 0 ? (
-            <div className="space-y-4">
-              {displayedVets.map(vet => (
-                <Card key={vet.id} className="p-4 flex flex-col sm:flex-row gap-4 hover:bg-secondary/30 transition-colors">
-                  <div className="w-full sm:w-1/3 h-40 sm:h-auto bg-muted rounded-md flex items-center justify-center overflow-hidden">
-                     <Image src={vet.imageUrl || `https://placehold.co/200x150.png?text=${encodeURIComponent(vet.name)}`} alt={vet.name} width={200} height={150} className="object-cover" data-ai-hint={vet.dataAiHint || "veterinary clinic"} />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-primary">{vet.name}</h3>
-                    <p className="text-sm text-muted-foreground">{vet.address}</p>
-                    <p className="text-sm mt-1"><span className="font-medium">Distance:</span> {vet.distance}</p>
-                    <p className="text-sm"><span className="font-medium">Rating:</span> {vet.rating}/5</p>
-                    <div className="mt-2">
-                      {vet.services.map(service => (
-                        <Badge key={service} variant="outline" className="mr-1 mb-1">{service}</Badge>
-                      ))}
+            {loadingVets ? (
+              <p className="text-center text-muted-foreground py-6">Loading veterinarians...</p>
+            ) : displayedVets.length > 0 ? (
+              <div className="space-y-4">
+                {displayedVets.map(vet => (
+                  <Card key={vet.id} className="p-4 flex flex-col sm:flex-row gap-4 hover:bg-secondary/30 transition-colors">
+                    <div className="w-full sm:w-1/3 h-40 sm:h-auto bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                      <Image src={vet.icon || `https://placehold.co/200x150.png?text=${encodeURIComponent(vet.name)}`} alt={vet.name} width={200} height={150} className="object-cover" />
                     </div>
-                    <Link href={`/veterinarians/${vet.id}`}>
-                        <Button size="sm" className="mt-3">View Details</Button>
-                    </Link>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-muted-foreground py-6">No veterinarians found matching your search criteria. Try a broader search or clear your filters.</p>
-          )}
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-primary">{vet.name}</h3>
+                      <p className="text-sm text-muted-foreground">{vet.address}</p>
+                      <p className="text-sm mt-1"><span className="font-medium">Rating:</span> {vet.rating || 'N/A'}/5</p>
+                      <div className="flex gap-2 mt-3">
+                        <Link href={`/veterinarians/${vet.id}`}>
+                          <Button size="sm">View Details</Button>
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleAddMyVet(vet)}
+                          disabled={addingVetId === vet.id}
+                        >
+                          {addingVetId === vet.id ? 'Adding...' : 'Add as My Vet'}
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-6">No veterinarians found matching your search criteria. Try a broader search or clear your filters.</p>
+            )}
         </CardContent>
       </Card>
     </>
