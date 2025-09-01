@@ -9,15 +9,16 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Stethoscope, PlusCircle, Edit3, MapPin, Phone, Mail, Loader2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
+import { VetFormDialog, VetFormValues } from './forms/VetFormDialog';
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, DocumentData, orderBy } from 'firebase/firestore';
 
 interface SavedVet extends DocumentData {
-  id: string; // This will be the original vet's ID from the public collection
+  id: string; // Google place_id
   name: string;
-  clinicName: string;
-  specialty: string;
+  clinicName?: string;
+  specialty?: string;
   phone?: string;
   email?: string;
   address?: string;
@@ -25,11 +26,16 @@ interface SavedVet extends DocumentData {
   dataAiHint?: string;
 }
 
+
 export default function VeterinariansPage() {
   const { user, loading: authLoading } = useAuth();
   const [savedVets, setSavedVets] = useState<SavedVet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editVet, setEditVet] = useState<SavedVet | null>(null);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (authLoading) {
@@ -64,6 +70,58 @@ export default function VeterinariansPage() {
 
     return () => unsubscribe();
   }, [user, authLoading]);
+
+  // Handlers for add/edit
+  const handleEdit = (vet: SavedVet) => {
+    setEditVet(vet);
+    setEditDialogOpen(true);
+  };
+
+  const handleAdd = () => {
+    setEditVet(null);
+    setAddDialogOpen(true);
+  };
+
+  // Firestore update for edit
+  const handleEditSubmit = async (values: VetFormValues) => {
+    if (!user || !editVet) return;
+    setSaving(true);
+    try {
+      const { id } = editVet;
+      await import('firebase/firestore').then(async ({ doc, updateDoc }) => {
+        await updateDoc(doc(collection(db, `users/${user.uid}/savedVets`), id), {
+          name: values.name,
+          clinicName: values.clinicName || '',
+          specialty: values.specialty || '',
+          phone: values.phone || '',
+          email: values.email || '',
+          address: values.address || '',
+          imageUrl: values.imageUrl || '',
+        });
+      });
+      setEditDialogOpen(false);
+    } catch (e) {
+      setError('Failed to update vet.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Firestore add for manual add
+  const handleAddSubmit = async (values: VetFormValues) => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      await import('firebase/firestore').then(async ({ collection, addDoc }) => {
+        await addDoc(collection(db, `users/${user.uid}/savedVets`), values);
+      });
+      setAddDialogOpen(false);
+    } catch (e) {
+      setError('Failed to add vet.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (authLoading || isLoading) {
     return (
@@ -120,9 +178,9 @@ export default function VeterinariansPage() {
                 <MapPin className="mr-2 h-4 w-4" /> Find a New Vet
               </Button>
             </Link>
-            <Button disabled> {/* Placeholder for Add Vet Manually */}
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Vet Manually
-            </Button>
+              <Button onClick={handleAdd}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Vet Manually
+              </Button>
           </div>
         }
       />
@@ -147,32 +205,47 @@ export default function VeterinariansPage() {
           {savedVets.map((vet) => (
             <Card key={vet.id} className="flex flex-col md:flex-row items-start gap-4 p-6 shadow-lg hover:shadow-xl transition-shadow">
               <Image 
-                src={vet.imageUrl || 'https://placehold.co/100x100.png'} 
-                alt={vet.name} 
-                width={100} 
-                height={100} 
-                className="rounded-full border-2 border-primary/30 object-cover" 
+                src={vet.imageUrl || '/vet-generic.jpeg'}
+                alt={vet.name}
+                width={100}
+                height={100}
+                className="rounded-full border-2 border-primary/30 object-cover bg-white"
                 data-ai-hint={vet.dataAiHint || 'veterinarian portrait'}
-                onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/100x100.png'; }}
+                onError={(e) => { (e.target as HTMLImageElement).src = '/vet-generic.jpeg'; }}
               />
               <div className="flex-1">
                 <CardHeader className="p-0 mb-2">
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-xl">{vet.name}</CardTitle>
-                    {/* Edit button for saved vet could lead to their main profile, or a way to remove from saved list */}
-                     <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary" disabled> {/* Placeholder for remove or edit saved vet */}
-                        <Edit3 className="h-5 w-5" />
-                      </Button>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary" onClick={() => handleEdit(vet)}>
+                      <Edit3 className="h-5 w-5" />
+                    </Button>
+      {/* Edit Vet Dialog */}
+      <VetFormDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        initialValues={editVet || undefined}
+        onSubmit={handleEditSubmit}
+        loading={saving}
+        title="Edit Veterinarian"
+      />
+      {/* Add Vet Dialog */}
+      <VetFormDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        onSubmit={handleAddSubmit}
+        loading={saving}
+        title="Add Veterinarian"
+      />
                   </div>
-                  <CardDescription>{vet.clinicName} - <Badge variant="secondary">{vet.specialty}</Badge></CardDescription>
+                  <CardDescription>{vet.clinicName} {vet.specialty && <><span>-</span> <Badge variant="secondary">{vet.specialty}</Badge></>}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-0 space-y-1 text-sm">
                   {vet.address && <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-muted-foreground" /> {vet.address}</p>}
                   {vet.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" /> {vet.phone}</p>}
                   {vet.email && <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-muted-foreground" /> {vet.email}</p>}
                 </CardContent>
-                <CardFooter className="p-0 mt-4">
-                   {/* Link to the vet's main profile page (assuming IDs match) */}
+                <CardFooter className="p-0 mt-4 flex gap-2">
                   <Link href={`/veterinarians/${vet.id}`} className="w-full">
                     <Button variant="outline" className="w-full">View Details & Schedule</Button>
                   </Link>
@@ -180,6 +253,7 @@ export default function VeterinariansPage() {
               </div>
             </Card>
           ))}
+  {/* More Details modal and button removed */}
         </div>
       )}
     </>
