@@ -2,7 +2,12 @@
 
 import LoginForm from './LoginForm';
 
-export default function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function LoginModal({ open, onClose, title, onSuccess }: { 
+  open: boolean; 
+  onClose: () => void; 
+  title?: string;
+  onSuccess?: () => void;
+}) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -14,8 +19,8 @@ export default function LoginModal({ open, onClose }: { open: boolean; onClose: 
         >
           ×
         </button>
-        <h2 className="text-2xl font-bold mb-4 text-center">Sign In</h2>
-        <LoginForm onSuccess={onClose} />
+        <h2 className="text-2xl font-bold mb-4 text-center">{title || 'Sign In'}</h2>
+        <LoginForm onSuccess={onSuccess || onClose} />
       </div>
     </div>
   );
